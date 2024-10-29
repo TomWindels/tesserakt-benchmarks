@@ -1,0 +1,3 @@
+[submodule "tesserakt"]
+	path = tesserakt
+	url = git@github.com:TomWindels/tesserakt

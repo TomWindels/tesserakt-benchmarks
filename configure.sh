@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ $(ls ./**/*.nt 2> /dev/null) ]] || [[ $* == -f ]]; then
-  printf "Benchmarks appear to be configured. You can force configuration by passing \`-f\` as an argument.\nExiting...\n"
+  printf "Turtle dataset files appear to be present. You can force configuration by passing \`-f\` as an argument.\n"
   exit
 fi
 
