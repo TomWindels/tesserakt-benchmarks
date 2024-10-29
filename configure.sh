@@ -5,5 +5,10 @@ if [[ $(ls ./**/*.nt 2> /dev/null) ]] || [[ $* == -f ]]; then
   exit
 fi
 
-cd watdiv || exit 255
+ROOT=$(pwd)
+
+cd "$ROOT/watdiv" || exit 255
+tar xvf dataset.tar.gz
+
+cd "$ROOT/railway" || exit 255
 tar xvf dataset.tar.gz
