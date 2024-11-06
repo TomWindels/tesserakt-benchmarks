@@ -2,9 +2,11 @@
 
 ROOT=$(pwd)
 REPO_LOCATION="$ROOT/.source"
-MODE="jvm"
 CLEAN=false
 ARGS=""
+DEFAULT_MODE=true
+JVM_MODE=false
+JS_MODE=false
 
 current_version_short() {
     cd "$REPO_LOCATION" || exit 255
@@ -22,7 +24,7 @@ build_jvm() {
         return
     fi
     cd "$REPO_LOCATION" || exit 255
-    ./gradlew benchmarking:jvmJar
+    ./gradlew benchmarking:jvmJar || exit 255
     cd "$ROOT" || exit 255
     mkdir -p benchmark
     mv "$REPO_LOCATION"/benchmarking/build/libs/benchmarking-jvm-*.jar benchmark/jvm.jar || exit 255
@@ -35,11 +37,11 @@ build_js() {
         return
     fi
     cd "$REPO_LOCATION" || exit 255
-    ./gradlew benchmarking:jsJar benchmarking:build
+    ./gradlew benchmarking:jsJar benchmarking:build || exit 255
     mv benchmarking/build/compileSync/js/main/productionExecutable/kotlin build/js || exit 255
     cd "$ROOT" || exit 255
     mkdir -p benchmark
-    ln -s ../tesserakt/build/js benchmark/nodejs
+    ln -s "$REPO_LOCATION/build/js" benchmark/nodejs
     echo "NodeJS benchmark (rev $(current_version_short)) ready!"
 }
 
@@ -109,11 +111,13 @@ for arg in "$@"; do
             shift
         ;;
         "--jvm")
-            MODE="jvm"
+            DEFAULT_MODE=false
+            JVM_MODE=true
             shift
         ;;
         "--js")
-            MODE="js"
+            DEFAULT_MODE=false
+            JS_MODE=true
             shift
         ;;
         "--")
@@ -133,14 +137,25 @@ if $CLEAN; then
     clean
 fi
 
-case $MODE in
-    "jvm")
-        build_jvm
-        run_jvm $ARGS
-    ;;
-    "js")
-        build_js
-        run_js $ARGS
-    ;;
-esac
+JVM=$JVM_MODE || $DEFAULT_MODE
+JS=$JS_MODE
 
+echo "Preparing requested benchmarks..."
+
+if $JVM; then
+    build_jvm
+fi
+
+if $JS; then
+    build_js
+fi
+
+echo "Executing requested benchmarks..."
+
+if $JVM; then
+    run_jvm $ARGS
+fi
+
+if $JS; then
+    run_js $ARGS
+fi
