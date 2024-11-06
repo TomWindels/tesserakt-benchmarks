@@ -37,7 +37,7 @@ build_js() {
         return
     fi
     cd "$REPO_LOCATION" || exit 255
-    ./gradlew benchmarking:jsJar benchmarking:build || exit 255
+    ./gradlew benchmarking:jsProductionExecutableCompileSync kotlinNpmInstall || exit 255
     mv benchmarking/build/compileSync/js/main/productionExecutable/kotlin build/js || exit 255
     cd "$ROOT" || exit 255
     mkdir -p benchmark
@@ -73,7 +73,8 @@ configure_version() {
         return
     fi
     echo "Changing tesserakt revision to $1"
-    git checkout "$1"
+    git fetch
+    git checkout "$1" || exit 255
     cd "$ROOT" || exit 255
     CLEAN=true
 }
