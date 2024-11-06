@@ -7,6 +7,7 @@ ARGS=""
 DEFAULT_MODE=true
 JVM_MODE=false
 JS_MODE=false
+VERSION=""
 
 current_version_short() {
     cd "$REPO_LOCATION" || exit 255
@@ -63,7 +64,6 @@ clean() {
 }
 
 configure_version() {
-    git submodule update --init --recursive
     cd "$REPO_LOCATION" || exit 255
     # Checking to see if the version already matches
     CURRENT_SHORT="$(current_version_short)"
@@ -97,14 +97,14 @@ if [ $# -eq 0 ]; then
     exit_with_help
 fi
 
-
+# Parsing the args so the configuration above is updated
 for arg in "$@"; do
     case $arg in
         "-h"|"--help")
             exit_with_help
         ;;
         -v=*|--version=*)
-            configure_version "${arg#*=}"
+            VERSION="${arg#*=}"
             shift
         ;;
         "--clean")
@@ -134,10 +134,22 @@ for arg in "$@"; do
     esac
 done
 
+# First making sure we have a repo to work with
+if [ ! -d "$REPO_LOCATION" ]; then
+    git clone https://github.com/TomWindels/tesserakt.git "$REPO_LOCATION"
+fi
+
+# If we have a specific version set, we can enforce that one
+if [ -n "$VERSION" ]; then
+    configure_version "$VERSION"
+fi
+
+# If clean is requested/required, we can do that now
 if $CLEAN; then
     clean
 fi
 
+# We can now deduce what platforms to build & run
 JVM=$JVM_MODE || $DEFAULT_MODE
 JS=$JS_MODE
 

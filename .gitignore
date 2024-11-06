@@ -1,3 +1,4 @@
+.source
 **/**.nt
 **/**.ttl
 benchmark/*
