@@ -1,4 +1,6 @@
 .source
-**/**.nt
-**/**.ttl
-benchmark/*
+/*
+!.gitignore
+!replay/
+!replay/*
+
