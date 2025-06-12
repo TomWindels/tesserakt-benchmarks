@@ -1,5 +1,6 @@
-.source
-/*
+bin
+build
+lib
 !.gitignore
 !replay/
 !replay/*

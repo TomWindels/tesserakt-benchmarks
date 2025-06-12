@@ -1,0 +1,21 @@
+#! /bin/bash
+
+if [ ! -e bin/sparql-bench ]; then
+
+    if [ ! -d build ]; then
+        # Getting the latest version of the repository into the build directory
+        git clone https://github.com/TomWindels/tesserakt build
+    fi
+
+    cd build || exit 1
+
+    # Creating the build, gradle takes care of the rest
+    ./gradlew --no-daemon testing:bench:sparql:installDist || exit 1
+
+    # Copying the build to the current directory
+    cp -r testing/bench/sparql/build/install/sparql-bench/{bin,lib} ..
+
+fi
+
+# Executing the binary, passing in all other arguments
+./bin/sparql-bench "$@"
