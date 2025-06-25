@@ -1,0 +1,61 @@
+#! /usr/bin/bash
+source config.sh
+
+SCRIPT_DIR=$(pwd)
+ENDPOINT_INSTALL_FOLDER=${SCRIPT_DIR}/../bin/virtuoso
+ENDPOINT_PORT=3004
+
+if [[ -d /tmp/virtuoso ]]; then
+	echo "Temporary file location already exists; is an instance already running?"
+	exit 1
+fi
+
+# Configuring endpoint data before manipulating the path further
+if [[ "${ENDPOINT_DATA}" != "" ]]; then
+	ENDPOINT_DATA=$(realpath ${ENDPOINT_DATA})
+fi
+
+mkdir /tmp/virtuoso
+cd /tmp/virtuoso
+
+# Creating the config
+cat > /tmp/virtuoso/virtuoso.ini<< EOF
+[TempDatabase]
+DatabaseFile			= /tmp/virtuoso/virtuoso-temp.db
+TransactionFile			= /tmp/virtuoso/virtuoso-temp.trx
+
+[Parameters]
+; used with the "isql" command, leaving it to the default value
+ServerPort			= 1111
+DirsAllowed			= $(dirname ${ENDPOINT_DATA})
+
+[HTTPServer]
+ServerPort			= ${ENDPOINT_PORT}
+EOF
+
+# Launching the server using said config
+${ENDPOINT_INSTALL_FOLDER}/bin/virtuoso-t +foreground &
+echo "Waiting 10s for the server to start..."
+sleep 10
+
+# Uploading the initial data, if any
+if [[ "${ENDPOINT_DATA}" != "" ]]; then
+
+${ENDPOINT_INSTALL_FOLDER}/bin/isql 1111 dba dba <<EOF
+SPARQL CREATE GRAPH <urn:graph:test>;
+ld_dir('$(realpath $(dirname ${ENDPOINT_DATA}))', '$(basename ${ENDPOINT_DATA})', 'urn:graph:test');
+rdf_loader_run();
+EOF
+
+fi
+
+# With the endpoint completely configured and running, we can launch the proper script
+cd ${SCRIPT_DIR}
+bash launch.sh "${ENDPOINT_PORT}" 
+
+# We launched it, so we stop it too
+kill $!
+
+# Cleaning it up
+rm -rf /tmp/virtuoso
+
