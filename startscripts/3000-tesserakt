@@ -1,6 +1,9 @@
 #! /usr/bin/bash
 source config.sh
 
+# Becomes available using the following URL:
+# localhost:3000/sparql
+
 ENDPOINT_JAR=../bin/tesserakt-endpoint.jar
 ENDPOINT_PORT=3000
 

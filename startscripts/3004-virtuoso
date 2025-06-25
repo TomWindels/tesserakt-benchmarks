@@ -1,6 +1,9 @@
 #! /usr/bin/bash
 source config.sh
 
+# Becomes available using the following URL:
+# localhost:3004/sparql?default-graph-uri=urn:graph:test
+
 SCRIPT_DIR=$(pwd)
 ENDPOINT_INSTALL_FOLDER=${SCRIPT_DIR}/../bin/virtuoso
 ENDPOINT_PORT=3004

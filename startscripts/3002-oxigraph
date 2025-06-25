@@ -1,6 +1,12 @@
 #! /usr/bin/bash
 source config.sh
 
+# Becomes available using the following URL:
+# SPARQL query:
+#  localhost:3002/query
+# SPARQL update:
+#  localhost:3002/update
+
 ENDPOINT_BIN=../bin/oxigraph
 ENDPOINT_PORT=3002
 

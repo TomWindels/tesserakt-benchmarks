@@ -1,6 +1,9 @@
 #! /usr/bin/bash
 source config.sh
 
+# Becomes available using the following URL:
+# localhost:3001/sparql
+
 ENDPOINT_PORT=3001
 ENDPOINT_JAR=../bin/jena-endpoint.jar
 

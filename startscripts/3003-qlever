@@ -1,6 +1,9 @@
 #! /usr/bin/bash
 source config.sh
 
+# Becomes available using the following URL:
+# localhost:3000 (no paths!)
+
 # As we're moving around the FS to configure qlever, we store the initial location first
 SCRIPT_DIR=$(pwd)
 ENDPOINT_SCRIPT=${SCRIPT_DIR}/../bin/qlever
