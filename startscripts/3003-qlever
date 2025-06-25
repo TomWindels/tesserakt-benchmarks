@@ -1,0 +1,63 @@
+#! /usr/bin/bash
+source config.sh
+
+# As we're moving around the FS to configure qlever, we store the initial location first
+SCRIPT_DIR=$(pwd)
+ENDPOINT_SCRIPT=${SCRIPT_DIR}/../bin/qlever
+ENDPOINT_PORT=3003
+
+# A subset of the total flags, responsible for identifying the container (used to both start and stop the endpoint)
+ID_FLAGS="--name qlever_endpoint --server-container qlever-container"
+FLAGS="--port ${ENDPOINT_PORT} --description qlever ${ID_FLAGS}"
+
+# Assumes we're currently in the correct location for the index to be created
+create_index() {
+	FILE_CONTENTS="
+[data]
+NAME            = qlever_endpoint
+[index]
+INPUT_FILES     = $(basename ${ENDPOINT_DATA} 2> /dev/null || echo "")
+CAT_INPUT_FILES = cat $(echo '${INPUT_FILES}')
+"
+	echo "${FILE_CONTENTS}" > "Qleverfile"
+	${ENDPOINT_SCRIPT} index
+}
+
+if [[ "${ENDPOINT_DATA}" != "" ]]; then
+	# We first need to check if the indexes exist
+	cd "$(dirname ${ENDPOINT_DATA})" || exit 1
+	if ! [[ -f "Qleverfile" ]]; then
+		create_index 
+	fi
+else
+	# Creating a temp qlever file in a temp location
+	TMP_LOC=/tmp/$(date +%s)
+	if [[ -d ${TMP_LOC} ]]; then
+		echo "The temporary location already exists?"
+		exit 1
+	fi
+	mkdir ${TMP_LOC}
+	cd ${TMP_LOC}
+	create_index
+fi
+
+${ENDPOINT_SCRIPT} start ${FLAGS}
+
+# With the data configured and the endpoint active, we can move to the script location again
+cd "${SCRIPT_DIR}"
+
+bash launch.sh "${ENDPOINT_PORT}"
+
+# We launched it, so we stop it too
+${ENDPOINT_SCRIPT} stop ${ID_FLAGS} 
+
+if [[ "${TMP_LOC}" != "" ]]; then
+	# Cleaning up, if we've used a temporary location
+	rm -rf "${TMP_LOC}"
+else
+	# Cleaning up in the source directory instead
+	cd $(dirname ${ENDPOINT_DATA})
+	rm qlever*
+	rm Qleverfile
+fi
+
