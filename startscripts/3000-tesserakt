@@ -1,0 +1,18 @@
+#! /usr/bin/bash
+source config.sh
+
+ENDPOINT_JAR=../bin/tesserakt-endpoint.jar
+ENDPOINT_PORT=3000
+
+FLAGS="--port ${ENDPOINT_PORT}"
+
+if [[ "${ENDPOINT_DATA}" != "" ]]; then
+	FLAGS="--from-file ${ENDPOINT_DATA} $FLAGS"
+fi
+
+if [[ "${ENABLE_QUERY_CACHE}" == 0 ]]; then
+	FLAGS="--disable-cache $FLAGS"
+fi
+
+bash launch.sh "${ENDPOINT_PORT}" -- java ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS} 
+

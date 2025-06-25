@@ -1,0 +1,17 @@
+#! /usr/bin/bash
+source config.sh
+
+ENDPOINT_PORT=3001
+ENDPOINT_JAR=../bin/jena-endpoint.jar
+
+# `sparql` is the endpoint path
+FLAGS="--port ${ENDPOINT_PORT} sparql"
+
+if [[ "${ENDPOINT_DATA}" != "" ]]; then
+	FLAGS="--file ${ENDPOINT_DATA} ${FLAGS}"
+else
+	FLAGS="--mem ${FLAGS}"
+fi
+
+bash launch.sh ${ENDPOINT_PORT} -- java ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS}
+
