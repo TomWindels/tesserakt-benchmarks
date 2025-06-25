@@ -17,14 +17,28 @@ await_endpoint() {
 	printf "\nEndpoint is ready!\n"
 }
 
+shift 1
+
+MANAGED_HERE=false
+if [[ "$1" == "--" ]]; then
+	MANAGED_HERE=true
+fi
+
+exec_exit() {
+	if [[ "${MANAGED_HERE}" == true ]]; then
+		echo "Shutting down..."
+		kill $!
+	fi
+	exit
+}
+
 await_exit() {
 	echo -n "Press enter to stop the server again"
+	trap "echo;exec_exit" SIGINT
 	read
 }
 
-shift 1
-
-if [[ "$1" != "--" ]]; then
+if [[ "${MANAGED_HERE}" == 0 ]]; then
 	echo "No launch commands provided; assuming the server is already launched..."
 	await_endpoint
 	await_exit
@@ -35,8 +49,7 @@ else
 	"$@" &
 	await_endpoint
 	await_exit
-	echo "Shutting down..."
-	kill $!
+	exec_exit
 fi
 
 
