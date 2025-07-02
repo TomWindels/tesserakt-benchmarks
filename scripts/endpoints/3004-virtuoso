@@ -1,11 +1,17 @@
 #! /usr/bin/bash
+
+# Ensuring our working directory is the script's location
+SCRIPT_LOCATION="$(dirname "$(readlink -f "$0")")"
+cd "${SCRIPT_LOCATION}" || exit 1
+BENCHMARK_ROOT="$(realpath "${SCRIPT_LOCATION}/../..")"
+
 source config.sh
 
 # Becomes available using the following URL:
 # localhost:3004/sparql?default-graph-uri=urn:graph:test
 
-SCRIPT_DIR=$(pwd)
-ENDPOINT_INSTALL_FOLDER=${SCRIPT_DIR}/../bin/virtuoso
+SCRIPT_DIR=${SCRIPT_LOCATION}
+ENDPOINT_INSTALL_FOLDER=${BENCHMARK_ROOT}/bin/virtuoso
 ENDPOINT_PORT=3004
 
 if [[ -d /tmp/virtuoso ]]; then

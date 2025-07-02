@@ -1,11 +1,17 @@
 #! /usr/bin/bash
+
+# Ensuring our working directory is the script's location
+SCRIPT_LOCATION="$(dirname "$(readlink -f "$0")")"
+cd "${SCRIPT_LOCATION}" || exit 1
+BENCHMARK_ROOT="$(realpath "${SCRIPT_LOCATION}/../..")"
+
 source config.sh
 
 # Becomes available using the following URL:
 # localhost:3001/sparql
 
 ENDPOINT_PORT=3001
-ENDPOINT_JAR=../bin/jena-endpoint.jar
+ENDPOINT_JAR="${BENCHMARK_ROOT}/bin/jena-endpoint.jar"
 
 # `sparql` is the endpoint path
 FLAGS="--port ${ENDPOINT_PORT} sparql"
@@ -17,3 +23,6 @@ else
 fi
 
 bash launch.sh ${ENDPOINT_PORT} -- "${JAVA_BIN}" ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS}
+
+# Cleaning up some of the data jena tends to leave behind
+rm -rf "${SCRIPT_LOCATION}/run"

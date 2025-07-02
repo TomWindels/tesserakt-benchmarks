@@ -1,11 +1,17 @@
 #! /usr/bin/bash
+
+# Ensuring our working directory is the script's location
+SCRIPT_LOCATION="$(dirname "$(readlink -f "$0")")"
+cd "${SCRIPT_LOCATION}" || exit 1
+BENCHMARK_ROOT="$(realpath "${SCRIPT_LOCATION}/../..")"
+
 source config.sh
 
 # Becomes available using the following URL:
 # localhost:3005/blazegraph/sparql
 
 ENDPOINT_PORT=3005
-ENDPOINT_JAR=../bin/blazegraph.jar
+ENDPOINT_JAR="${BENCHMARK_ROOT}/bin/blazegraph.jar"
 
 FLAGS="-Djetty.port=${ENDPOINT_PORT}"
 
@@ -27,3 +33,7 @@ else
 	# We can launch normally and keep it managed inside the launch script
 	bash launch.sh ${ENDPOINT_PORT} -- ${CMD}
 fi
+
+# Cleaning up some of the data blazegraph tends to leave behind
+rm -rf "${SCRIPT_LOCATION}/blazegraph.jnl"
+rm -rf "${SCRIPT_LOCATION}/rules.log"

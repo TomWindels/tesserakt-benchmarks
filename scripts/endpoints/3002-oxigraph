@@ -1,4 +1,10 @@
 #! /usr/bin/bash
+
+# Ensuring our working directory is the script's location
+SCRIPT_LOCATION="$(dirname "$(readlink -f "$0")")"
+cd "${SCRIPT_LOCATION}" || exit 1
+BENCHMARK_ROOT="$(realpath "${SCRIPT_LOCATION}/../..")"
+
 source config.sh
 
 # Becomes available using the following URL:
@@ -7,7 +13,7 @@ source config.sh
 # SPARQL update:
 #  localhost:3002/update
 
-ENDPOINT_BIN=../bin/oxigraph
+ENDPOINT_BIN="${BENCHMARK_ROOT}/bin/oxigraph"
 ENDPOINT_PORT=3002
 
 FLAGS="--bind 127.0.0.1:${ENDPOINT_PORT} --union-default-graph"

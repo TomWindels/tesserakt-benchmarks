@@ -1,10 +1,16 @@
 #! /usr/bin/bash
+
+# Ensuring our working directory is the script's location
+SCRIPT_LOCATION="$(dirname "$(readlink -f "$0")")"
+cd "${SCRIPT_LOCATION}" || exit 1
+BENCHMARK_ROOT="$(realpath "${SCRIPT_LOCATION}/../..")"
+
 source config.sh
 
 # Becomes available using the following URL:
 # localhost:3000/sparql
 
-ENDPOINT_JAR=../bin/tesserakt-endpoint.jar
+ENDPOINT_JAR="${BENCHMARK_ROOT}/bin/tesserakt-endpoint.jar"
 ENDPOINT_PORT=3000
 
 FLAGS="--port ${ENDPOINT_PORT}"

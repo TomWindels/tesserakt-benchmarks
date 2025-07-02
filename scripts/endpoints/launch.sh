@@ -1,3 +1,5 @@
+#! /bin/bash
+
 if ! [[ "$1" =~ ^[0-9]{1,4}$ ]] ; then
 	echo "The first argument is not a number (endpoint expected, 1 to 4 numbers, got $1)" >&2; exit 1
 fi
@@ -33,7 +35,7 @@ exec_exit() {
 }
 
 await_exit() {
-	echo -n "Press enter to stop the server again"
+	echo -n "Press enter to stop the server again, or use ^C / SIGINT, e.g. \`kill -SIGINT $(echo $$)\`"
 	trap "echo;exec_exit" SIGINT
 	read
 }
