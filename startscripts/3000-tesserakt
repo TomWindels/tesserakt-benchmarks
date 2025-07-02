@@ -17,5 +17,4 @@ if [[ "${ENABLE_QUERY_CACHE}" == 0 ]]; then
 	FLAGS="--disable-cache $FLAGS"
 fi
 
-bash launch.sh "${ENDPOINT_PORT}" -- java ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS} 
-
+bash launch.sh "${ENDPOINT_PORT}" -- "${JAVA_BIN}" ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS} 

@@ -19,7 +19,7 @@ create_index() {
 [data]
 NAME            = qlever_endpoint
 [index]
-INPUT_FILES     = $(basename ${ENDPOINT_DATA} 2> /dev/null || echo "")
+INPUT_FILES     = $(basename "${ENDPOINT_DATA}" 2> /dev/null || echo "")
 CAT_INPUT_FILES = cat $(echo '${INPUT_FILES}')
 "
 	echo "${FILE_CONTENTS}" > "Qleverfile"
@@ -28,26 +28,26 @@ CAT_INPUT_FILES = cat $(echo '${INPUT_FILES}')
 
 if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	# We first need to check if the indexes exist
-	cd "$(dirname ${ENDPOINT_DATA})" || exit 1
+	cd "$(dirname "${ENDPOINT_DATA}")" || exit 1
 	if ! [[ -f "Qleverfile" ]]; then
 		create_index 
 	fi
 else
 	# Creating a temp qlever file in a temp location
 	TMP_LOC=/tmp/$(date +%s)
-	if [[ -d ${TMP_LOC} ]]; then
+	if [[ -d "${TMP_LOC}" ]]; then
 		echo "The temporary location already exists?"
 		exit 1
 	fi
-	mkdir ${TMP_LOC}
-	cd ${TMP_LOC}
+	mkdir "${TMP_LOC}"
+	cd "${TMP_LOC}" || exit 1
 	create_index
 fi
 
 ${ENDPOINT_SCRIPT} start ${FLAGS}
 
 # With the data configured and the endpoint active, we can move to the script location again
-cd "${SCRIPT_DIR}"
+cd "${SCRIPT_DIR}" || exit 1
 
 bash launch.sh "${ENDPOINT_PORT}"
 
@@ -59,8 +59,7 @@ if [[ "${TMP_LOC}" != "" ]]; then
 	rm -rf "${TMP_LOC}"
 else
 	# Cleaning up in the source directory instead
-	cd $(dirname ${ENDPOINT_DATA})
+	cd "$(dirname "${ENDPOINT_DATA}")" || exit 1
 	rm qlever*
 	rm Qleverfile
 fi
-

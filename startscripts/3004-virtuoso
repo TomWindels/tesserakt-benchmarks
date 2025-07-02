@@ -19,7 +19,7 @@ if [[ "${ENDPOINT_DATA}" != "" ]]; then
 fi
 
 mkdir /tmp/virtuoso
-cd /tmp/virtuoso
+cd /tmp/virtuoso || exit 1
 
 # Creating the config
 cat > /tmp/virtuoso/virtuoso.ini<< EOF
@@ -46,14 +46,14 @@ if [[ "${ENDPOINT_DATA}" != "" ]]; then
 
 ${ENDPOINT_INSTALL_FOLDER}/bin/isql 1111 dba dba <<EOF
 SPARQL CREATE GRAPH <urn:graph:test>;
-ld_dir('$(realpath $(dirname ${ENDPOINT_DATA}))', '$(basename ${ENDPOINT_DATA})', 'urn:graph:test');
+ld_dir('$(realpath "$(dirname "${ENDPOINT_DATA}")")', '$(basename "${ENDPOINT_DATA}")', 'urn:graph:test');
 rdf_loader_run();
 EOF
 
 fi
 
 # With the endpoint completely configured and running, we can launch the proper script
-cd ${SCRIPT_DIR}
+cd ${SCRIPT_DIR} || exit 1
 bash launch.sh "${ENDPOINT_PORT}" 
 
 # We launched it, so we stop it too
@@ -61,4 +61,3 @@ kill $!
 
 # Cleaning it up
 rm -rf /tmp/virtuoso
-
