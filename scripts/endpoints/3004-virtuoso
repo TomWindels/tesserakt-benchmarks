@@ -44,7 +44,7 @@ ServerPort			= ${ENDPOINT_PORT}
 EOF
 
 # Launching the server using said config
-${ENDPOINT_INSTALL_FOLDER}/bin/virtuoso-t +foreground &
+"${ENDPOINT_INSTALL_FOLDER}/bin/virtuoso-t" +foreground &
 echo "Waiting 10s for the server to start..."
 sleep 10
 

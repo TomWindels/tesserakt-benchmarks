@@ -1,19 +1,30 @@
 #! /bin/bash
 
+BENCH_ROOT="$(realpath "$(dirname "$(readlink -f "$0")")")"
+
+cd "${BENCH_ROOT}" || exit 1
+
 if [ ! -e bin/sparql-bench ]; then
 
     if [ ! -d build ]; then
         # Getting the latest version of the repository into the build directory
         git clone https://github.com/TomWindels/tesserakt build
+        cd build || exit 1
+    else
+        # Updating the existing repository
+        cd build || exit 1
+        # Not changing branches, just pulling the latest changes
+        git pull
     fi
-
-    cd build || exit 1
 
     # Creating the build, gradle takes care of the rest
     ./gradlew --no-daemon testing:bench:sparql:installDist || exit 1
 
-    # Copying the build to the current directory
-    cp -r testing/bench/sparql/build/install/sparql-bench/{bin,lib} ..
+    # Symlinking to the created launch script
+    ln -s "$(pwd)/testing/bench/sparql/build/install/sparql-bench/bin/sparql-bench" ../bin/sparql-bench
+
+    # Going back to the original directory
+    cd "${BENCH_ROOT}" || exit 1
 
 fi
 
