@@ -15,6 +15,8 @@ SCRIPT_DIR=${SCRIPT_LOCATION}
 ENDPOINT_SCRIPT="${BENCHMARK_ROOT}/bin/qlever"
 ENDPOINT_PORT=3003
 
+source common.sh
+
 # A subset of the total flags, responsible for identifying the container (used to both start and stop the endpoint)
 ID_FLAGS="--name qlever_endpoint --server-container qlever-container"
 FLAGS="--port ${ENDPOINT_PORT} --description qlever ${ID_FLAGS}"
@@ -55,7 +57,7 @@ ${ENDPOINT_SCRIPT} start ${FLAGS}
 # With the data configured and the endpoint active, we can move to the script location again
 cd "${SCRIPT_DIR}" || exit 1
 
-bash launch.sh "${ENDPOINT_PORT}"
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/"
 
 # We launched it, so we stop it too
 ${ENDPOINT_SCRIPT} stop ${ID_FLAGS} 

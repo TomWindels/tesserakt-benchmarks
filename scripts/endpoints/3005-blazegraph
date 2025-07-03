@@ -13,27 +13,25 @@ source config.sh
 ENDPOINT_PORT=3005
 ENDPOINT_JAR="${BENCHMARK_ROOT}/bin/blazegraph.jar"
 
+source common.sh
+
 FLAGS="-Djetty.port=${ENDPOINT_PORT}"
 
-CMD="${JAVA_BIN} ${JAVA_FLAGS} ${FLAGS} -jar ${ENDPOINT_JAR}"
+# We need to launch it manually, await for it to be ready, and then set the data
+"${JAVA_BIN}" ${JAVA_FLAGS} ${FLAGS} -jar "${ENDPOINT_JAR}" &
 
 if [[ "${ENDPOINT_DATA}" != "" ]]; then
-	# We need to launch it manually, await for it to be ready, and then set the data
-	# Starting it, similar to how the launch script would do it, but in the background
-	${CMD} &
 	echo "Waiting 10s for the server to start..."
 	sleep 10
 	# Now the data can be added
 	curl -f -X POST -T "${ENDPOINT_DATA}" -H "Content-Type: text/turtle" "http://localhost:${ENDPOINT_PORT}/blazegraph/sparql" || exit 1
-	# Now we can launch the launch script, which will take care of the rest
-	bash launch.sh "${ENDPOINT_PORT}"
-	# We're done now, so we can shut it down again
-	kill $!
-else
-	# We can launch normally and keep it managed inside the launch script
-	bash launch.sh ${ENDPOINT_PORT} -- ${CMD}
 fi
 
+# Now we can await the endpoint to be ready and shutdown when exited, cleaning up after it
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/blazegraph/sparql"
+
+# We're done now, so we can shut it down again
+kill $!
 # Cleaning up some of the data blazegraph tends to leave behind
 rm -rf "${SCRIPT_LOCATION}/blazegraph.jnl"
 rm -rf "${SCRIPT_LOCATION}/rules.log"

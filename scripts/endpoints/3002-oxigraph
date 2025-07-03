@@ -16,6 +16,8 @@ source config.sh
 ENDPOINT_BIN="${BENCHMARK_ROOT}/bin/oxigraph"
 ENDPOINT_PORT=3002
 
+source common.sh
+
 FLAGS="--bind 127.0.0.1:${ENDPOINT_PORT} --union-default-graph"
 
 # First starting the binary manually...
@@ -26,7 +28,8 @@ if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	curl -X POST -T "${ENDPOINT_DATA}" -H "Content-Type: application/n-triples" "http://127.0.0.1:${ENDPOINT_PORT}/store?no_transaction" || exit 1
 fi
 
-bash launch.sh "${ENDPOINT_PORT}" 
+# Now we can await the endpoint to be ready and shutdown when exited, cleaning up after it
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/query"
 
 # We launched it, so we stop it too
 kill $!

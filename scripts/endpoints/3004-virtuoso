@@ -10,9 +10,10 @@ source config.sh
 # Becomes available using the following URL:
 # localhost:3004/sparql?default-graph-uri=urn:graph:test
 
-SCRIPT_DIR=${SCRIPT_LOCATION}
 ENDPOINT_INSTALL_FOLDER=${BENCHMARK_ROOT}/bin/virtuoso
 ENDPOINT_PORT=3004
+
+source common.sh
 
 if [[ -d /tmp/virtuoso ]]; then
 	echo "Temporary file location already exists; is an instance already running?"
@@ -58,9 +59,8 @@ EOF
 
 fi
 
-# With the endpoint completely configured and running, we can launch the proper script
-cd ${SCRIPT_DIR} || exit 1
-bash launch.sh "${ENDPOINT_PORT}" 
+# We can now await the endpoint and finish upon exiting
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql?default-graph-uri=urn:graph:test"
 
 # We launched it, so we stop it too
 kill $!

@@ -13,6 +13,8 @@ source config.sh
 ENDPOINT_PORT=3001
 ENDPOINT_JAR="${BENCHMARK_ROOT}/bin/jena-endpoint.jar"
 
+source common.sh
+
 # `sparql` is the endpoint path
 FLAGS="--port ${ENDPOINT_PORT} sparql"
 
@@ -22,7 +24,12 @@ else
 	FLAGS="--mem ${FLAGS}"
 fi
 
-bash launch.sh ${ENDPOINT_PORT} -- "${JAVA_BIN}" ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS}
+"${JAVA_BIN}" ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS} &
+
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql"
+
+# We launched it, so we stop it too
+kill $!
 
 # Cleaning up some of the data jena tends to leave behind
 rm -rf "${SCRIPT_LOCATION}/run"
