@@ -22,6 +22,7 @@ if [ ! -e bin/sparql-bench ]; then
 
     # Symlinking to the created launch script
     ln -s "$(pwd)/testing/bench/sparql/build/install/sparql-bench/bin/sparql-bench" ../bin/sparql-bench
+    chmod +x ../bin/sparql-bench
 
     # Going back to the original directory
     cd "${BENCH_ROOT}" || exit 1

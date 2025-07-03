@@ -6,6 +6,6 @@
 export ENABLE_QUERY_CACHE=0
 
 ## JAVA CONFIGURATION
-export JAVA_BIN=/usr/lib/jvm/default-runtime/bin/java
+export JAVA_BIN="${JAVA_HOME:-/usr/lib/jvm/default-runtime}"/bin/java
 export JAVA_FLAGS="-Xmx1g"
 #export JAVA_FLAGS="-server -Xmx16g"

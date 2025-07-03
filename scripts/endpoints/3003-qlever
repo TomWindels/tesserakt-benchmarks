@@ -38,7 +38,10 @@ if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	# We first need to check if the indexes exist
 	cd "$(dirname "${ENDPOINT_DATA}")" || exit 1
 	if ! [[ -f "Qleverfile" ]]; then
-		create_index 
+		create_index
+	else
+		# If the Qleverfile exists, we assume the index is already created
+		echo "Qleverfile already exists, assuming the index is already created."
 	fi
 else
 	# Creating a temp qlever file in a temp location
