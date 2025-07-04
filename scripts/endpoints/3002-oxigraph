@@ -23,7 +23,10 @@ FLAGS="--bind 127.0.0.1:${ENDPOINT_PORT} --union-default-graph"
 # First starting the binary manually...
 ${ENDPOINT_BIN} serve ${FLAGS} &
 
-# ...as we need it alive to set the endpoint data
+# ... which has to be actually active...
+await_port_in_use
+
+# ...as we need it to set the endpoint data
 if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	curl -X POST -T "${ENDPOINT_DATA}" -H "Content-Type: application/n-triples" "http://127.0.0.1:${ENDPOINT_PORT}/store?no_transaction" || exit 1
 fi
