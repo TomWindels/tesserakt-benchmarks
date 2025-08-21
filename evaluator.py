@@ -5,7 +5,7 @@ import sys
 import subprocess
 from time import sleep, time
 from threading import Thread
-from queue import Queue
+from queue import Queue, Empty
 import argparse
 import re
 import itertools
@@ -15,6 +15,9 @@ parser = argparse.ArgumentParser(description="Benchmark orchestrator, managing S
 
 # Adding an argument to specify the endpoint script directory
 parser.add_argument('-e', '--endpoints', type=str, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "scripts/endpoints")), help='Directory containing the endpoint scripts to run.')
+
+# Adding an argument to specify the filter for the endpoints
+parser.add_argument('-f', '--filter', type=str, default=None, help='Filter for the endpoints to run. This is a regex that matches the endpoint script names. If not provided, all endpoints are run.')
 
 # Adding an argument to specify the output directory
 parser.add_argument('-o', '--output', type=str, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "output")), help='Directory to store the output of the benchmark.')
@@ -28,6 +31,12 @@ parser.add_argument('-q', '--queries', type=str, help='Directory containing the 
 # Adding an argument to specify the benchmark script
 parser.add_argument('-s', '--script', type=str, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "sparql-bench")), help='The location of the benchmarking script itself.')
 
+# Adding an argument to specify the memory profiles
+parser.add_argument('--profiles', type=str, default=None, help='Various memory profiles applied to the endpoints. This is a comma-separated list of max memory values, e.g., "1g,2g". If none are provided, the value set in `config.sh` is kept.')
+
+# Adding an argument to specify whether to fail fast
+parser.add_argument('--fail-fast', action='store_true', help='If set, the script will stop running endpoints as soon as one fails. Otherwise, it will continue running all endpoints regardless of failures.')
+
 # Getting the arguments
 args = parser.parse_args()
 
@@ -37,6 +46,7 @@ args.output = os.path.realpath(args.output)
 args.input = os.path.realpath(args.input) if args.input else None
 args.queries = os.path.realpath(args.queries) if args.queries else None
 args.script = os.path.realpath(args.script)
+args.memory_profiles = args.profiles.split(',') if args.profiles else None
 
 # Validating the arguments
 if not os.path.exists(args.input) or not os.path.isdir(args.input):
@@ -67,7 +77,7 @@ def listdir_abs(path):
 # Detecting all relevant scripts
 endpoints = [
     file for file in listdir_abs(args.endpoints)
-    if re.match(r'^.*/[0-9]{4}-[a-zA-Z]*$', file) and os.path.isfile(file) and os.access(file, os.X_OK)
+    if re.match(r'^.*/[0-9]{4}-[a-zA-Z]*$', file) and os.path.isfile(file) and os.access(file, os.X_OK) and (args.filter is None or re.search(args.filter, os.path.basename(file)))
 ]
 
 print(f"Found {len(endpoints)} endpoint scripts in '{args.endpoints}'")
@@ -109,52 +119,97 @@ class EndpointInstance:
         except Exception as e:
             print(f"Unexpected error running {self.script}: {str(e)}")
 
+    def __enter__(self):
+        """
+        Context manager entry point, starts the script.
+        """
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Context manager exit point, stops the script.
+        """
+        self.stop()
+
+    def _read_stream(self, stream, callback: callable):
+        # Automatically closing the stream after we're done reading
+        with stream:
+            try:
+                for char in iter(lambda: stream.read(1), b''):
+                    if char:
+                        callback(char.decode())
+            except ValueError as e:
+                print(f"Error reading from stream, assuming it stopped")
+
     def _read_stdout(self):
+        print("Reading stdout...")
         output_format = r"Endpoint is ready: (http://[^:]*:\d+/.*)$"
         current_line = ""
-        if self.proc and self.proc.stdout:
-            for char in iter(lambda: self.proc.stdout.read(1), b''):
-                char = char.decode()
-                current_line += char
-                sys.stdout.write(char)
-                sys.stdout.flush()
+        stream = self.proc.stdout if self.proc else None
+        if not stream:
+            return
 
-                if char == '\n':
-                    # Process the current line
-                    match = re.search(output_format, current_line)
-                    if match:
-                        url = match.group(1)
-                        self.queue.put(url)
-                    current_line = ""
+        def _process_stdout(char: str):
+            sys.stdout.write(char)
+            sys.stdout.flush()
+            nonlocal current_line
+            current_line += char
+
+            # Process the current line
+            if char == '\n':
+                match = re.search(output_format, current_line)
+                # print(f"format: {output_format}")
+                # print(f"currentl ine: {current_line}")
+                if match:
+                    url = match.group(1)
+                    self.queue.put(url)
+                current_line = ""
+
+        self._read_stream(stream, _process_stdout)
 
     def _read_stderr(self):
-        if self.proc and self.proc.stderr:
-            for char in iter(lambda: self.proc.stderr.read(1), b''):
-                sys.stderr.write(char.decode())
-                sys.stderr.flush()
+        stream = self.proc.stderr if self.proc else None
+        if not stream:
+            return
+
+        def _process_stderr(char: str):
+            sys.stderr.write(char)
+            sys.stderr.flush()
+
+        self._read_stream(stream, _process_stderr)
 
     def stop(self):
         """
         Stops the script by sending a SIGINT signal to the process and waiting for it to terminate.
         """
         if self.proc:
-            self.proc.send_signal(subprocess.signal.SIGINT)
-            self.proc.wait()
-            self.proc.stdout.close()
-            self.proc.stderr.close()
+            # Taking ownership of the process to ensure it is stopped
+            proc=self.proc
+            self.proc = None
+            # Now handling its shutdown
+            proc.send_signal(subprocess.signal.SIGINT)
+            print("Waiting for the script to terminate...")
+            proc.wait()
+            # The end of the process should also cause the streams to be closed as the threads are finishing up
             self.stdout_thread.join()
             self.stderr_thread.join()
-            self.proc = None
             print(f"Script {self.script} stopped.")
 
     def await_url(self):
         """
         Waits for the script to output a URL, which is expected to be printed in the format:
-        "Endpoint is ready: http://localhost:PORT/sparql"
+        "Endpoint is ready: http://localhost:PORT/sparql" - throws an exception upon reaching the 2 minute timeout, automatically calling `stop()`.
         """
         if not self.proc or not self.proc.stdout:
             raise RuntimeError("Process not started or stdout not available.")
-        return self.queue.get()
+        try:
+            # FIXME 120s
+            return self.queue.get(timeout=10)  # Wait for up to 2 minutes for the URL to be available
+        except Empty as e:
+            print(f"Error: No URL received from {self.script} within the timeout period. Stopping the endpoint.")
+            self.stop()
+            raise RuntimeError("No URL received from the endpoint script within the timeout period.") from e
 
 # Reading all benchmark queries based on the arguments
 if os.path.isfile(args.queries):
@@ -183,35 +238,57 @@ queries = map(
 query_args = list(itertools.chain(*[("--query", query) for query in queries]))
 
 # Running the scripts in subprocesses
-for endpoint in endpoints:
-    print(f"Running {endpoint}...")
-    try:
+for endpoint_name in endpoints:
+    for memory_profile in args.memory_profiles or [None]:
+        if memory_profile:
+            os.environ['JAVA_FLAGS'] = f"-Xmx{memory_profile}"
+            print(f"Running {endpoint_name} ({memory_profile})...")
+        else:
+            # Ensuring no other value is set
+            os.environ['JAVA_FLAGS'] = ""
+            print(f"Running {endpoint_name}...")
         for dataset_path in listdir_abs(args.input):
-            job = EndpointInstance(endpoint, dataset=dataset_path)
-            job.start()
-            # Waiting until the endpoint is ready and the URL is available
-            url = job.await_url()
+            with EndpointInstance(endpoint_name, dataset=dataset_path) as endpoint:
+                try:
+                    # Waiting until the endpoint is ready and the URL is available
+                    url = endpoint.await_url()
 
-            # Running the benchmark job against the endpoint URL
-            process = subprocess.Popen(
-                [
-                    args.script, "query",
-                    "--url", url,
-                    "--output", os.path.join(args.output, os.path.basename(dataset_path)),
-                ] + query_args,
-            )
-            process.wait()
-            if process.returncode != 0:
-                print(f"Error running benchmark against {url}: {process.stderr}")
-                print(f"Stopping early")
-                # Now stopping the endpoint again
-                job.stop()
-                exit(1)
-            else:
-                sleep(1)
-                # Now we can shut it down and go to the next endpoint
-                print(f"Stopping...")
-                # Now stopping the endpoint again
-                job.stop()
-    except Exception as e:
-        print(f"Unexpected error running {endpoint}: {str(e)}")
+                    # Running the benchmark job against the endpoint URL
+                    process = subprocess.Popen(
+                        [
+                            args.script, "query",
+                            "--url", url,
+                            # FIXME - make this configurable
+                            "--runs", "1",
+                            "--output", os.path.join(args.output, os.path.basename(dataset_path), memory_profile if memory_profile else "default"),
+                        ] + query_args,
+                    )
+
+                    # Executing the process with an extra timeout set; if it fails, we assume the endpoint DNF
+                    try:
+                        # FIXME scale according to the number of queries, allow 30s per query
+                        process.wait(10)
+                        if process.returncode != 0 and args.fail_fast:
+                            print(f"Error running benchmark against {url}: {process.stderr}")
+                            print(f"Stopping early")
+                            exit(1)
+                        else:
+                            sleep(1)
+                            # Now we can shut it down and go to the next endpoint
+                            print(f"Received exit code {process.returncode}")
+                            print(f"Stopping...")
+                    except subprocess.TimeoutExpired:
+                        print(f"Benchmark against {url} timed out.")
+                        process.kill()
+                        if args.fail_fast:
+                            print(f"Stopping early due to timeout.")
+                            exit(1)
+                except KeyboardInterrupt as e:
+                    print("Keyboard interrupt received, stopping...")
+                    print(e)
+                    exit(1)
+                except Exception as e:
+                    print(f"Unexpected error running {endpoint_name}: {str(e)}")
+                    if args.fail_fast:
+                        print(f"Stopping early due to error: {str(e)}")
+                        exit(1)
