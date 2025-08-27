@@ -50,6 +50,8 @@ args.input = os.path.realpath(args.input) if args.input else None
 args.queries = os.path.realpath(args.queries) if args.queries else None
 args.script = os.path.realpath(args.script)
 if args.memory_range:
+    if args.runs != 1:
+        print("Warning: When using memory range evaluation, the number of runs is forced to 1 to avoid excessive runtimes.")
     args.memory_range = args.memory_range.split(',')
     if len(args.memory_range) != 2 or not all(re.match(r'^[0-9]+$', val) for val in args.memory_range):
         print("Error: The memory range must be in the format 'lower,upper', where both lower and upper are integers representing memory in MB.")
@@ -110,12 +112,13 @@ class Evaluator:
     A class wrapping the sparql-bench evaluator script, allowing to run queries against a given SPARQL endpoint URL.
     Throws a TimeoutError if the evaluator is idling based on stdout, indicating an unresponsive endpoint.
     """
-    def __init__(self, url: str, output_name: str = "default"):
+    def __init__(self, url: str, output_name: str = "default", iterations: int = 1):
         self.url = url
         self.proc = None
         self.stdout_thread = None
         self._current_timeout = None
         self.output_name = output_name
+        self.runs = iterations
 
     def evaluate(self):
         self.proc = subprocess.Popen(
@@ -126,7 +129,7 @@ class Evaluator:
                 "setsid",
                 args.script, "query",
                 "--url", self.url,
-                "--runs", f"{args.runs}",
+                "--runs", f"{self.runs}",
                 "--output", os.path.join(args.output, os.path.basename(dataset_path), self.output_name),
             ] + query_args,
             stdout=subprocess.PIPE,
@@ -138,13 +141,13 @@ class Evaluator:
         # With the thread active, we now busy loop until the process is done or we hit a timeout
         self._update_current_time()
         while self.proc.poll() is None:
-            # Sleeping until the next timeout check
-            sleep(max(self._current_timeout - time(), 1))
             # Checking if we've hit the timeout
             if time() > self._current_timeout:
                 # Timeout hit, killing the process and throwing an error
                 self._shutdown()
                 raise TimeoutError(f"Evaluator timed out, assuming the endpoint is unresponsive.")
+            # Sleeping, periodically checking the timeout & process status
+            sleep(1)
         # Even though we finished regularly, we need to ensure the thread is done
         self._shutdown()
 
@@ -319,7 +322,7 @@ queries = map(
 
 query_args = list(itertools.chain(*[("--query", query) for query in queries]))
 
-def eval(endpoint_name: str, dataset_path: str, output_name: str = "default") -> bool:
+def eval(endpoint_name: str, dataset_path: str, output_name: str = "default", iterations: int = 1) -> bool:
     """
     Evaluates a single endpoint with the given dataset.
     Returns True if the evaluation was successful, False otherwise.
@@ -329,7 +332,7 @@ def eval(endpoint_name: str, dataset_path: str, output_name: str = "default") ->
             # Waiting until the endpoint is ready and the URL is available
             url = endpoint.await_url()
             # Running the benchmark job against the endpoint URL
-            evaluator = Evaluator(url, output_name=output_name)
+            evaluator = Evaluator(url, output_name=output_name, iterations=iterations)
             print(f"Running benchmark against {url}...")
             evaluator.evaluate()
             return True
@@ -383,4 +386,4 @@ else:
         print(f"Running {endpoint_name}...")
         for dataset_path in listdir_abs(args.input):
             print(f"Using dataset: {dataset_path}")
-            eval(endpoint_name=endpoint_name, dataset_path=dataset_path)
+            eval(endpoint_name=endpoint_name, dataset_path=dataset_path, iterations=args.runs)
