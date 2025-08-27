@@ -205,8 +205,7 @@ class EndpointInstance:
         if not self.proc or not self.proc.stdout:
             raise RuntimeError("Process not started or stdout not available.")
         try:
-            # FIXME 120s
-            return self.queue.get(timeout=10)  # Wait for up to 2 minutes for the URL to be available
+            return self.queue.get(timeout=120)  # Wait for up to 2 minutes for the URL to be available
         except Empty as e:
             print(f"Error: No URL received from {self.script} within the timeout period. Stopping the endpoint.")
             self.stop()
@@ -231,6 +230,8 @@ def read_contents(file):
     with open(file, 'r') as f:
         return f.read()
 
+query_count = len(queries)
+# Now overwriting the queries variable with the actual contents
 queries = map(
     read_contents,
     queries
@@ -263,12 +264,16 @@ for endpoint_name in endpoints:
                             "--runs", "1",
                             "--output", os.path.join(args.output, os.path.basename(dataset_path), memory_profile if memory_profile else "default"),
                         ] + query_args,
+                        stderr=subprocess.DEVNULL
                     )
 
                     # Executing the process with an extra timeout set; if it fails, we assume the endpoint DNF
                     try:
-                        # FIXME scale according to the number of queries, allow 30s per query
-                        process.wait(10)
+                        # scaling max duration according to the number of queries, 10s per query
+                        timeout = 1 * query_count
+                        print(f"Waiting for the benchmark to complete (timeout set to {timeout}s)...")
+                        sleep(1)
+                        process.wait(timeout=timeout)
                         if process.returncode != 0 and args.fail_fast:
                             print(f"Error running benchmark against {url}: {process.stderr}")
                             print(f"Stopping early")
