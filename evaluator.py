@@ -85,6 +85,87 @@ endpoints = [
 
 print(f"Found {len(endpoints)} endpoint scripts in '{args.endpoints}'")
 
+class Utils:
+    @staticmethod
+    def read_stream(stream, callback: callable):
+        # Automatically closing the stream after we're done reading
+        with stream:
+            try:
+                for char in iter(lambda: stream.read(1), b''):
+                    if char:
+                        callback(char.decode())
+            except ValueError:
+                print(f"Error reading from stream, assuming it stopped")
+
+class Evaluator:
+    """
+    A class wrapping the sparql-bench evaluator script, allowing to run queries against a given SPARQL endpoint URL.
+    Throws a TimeoutError if the evaluator is idling based on stdout, indicating an unresponsive endpoint.
+    """
+    def __init__(self, url: str):
+        self.url = url
+        self.proc = None
+        self.stdout_thread = None
+        self._current_timeout = None
+
+    def evaluate(self):
+        self.proc = subprocess.Popen(
+            [
+                # Ensuring the process is started in its own session to manage signals properly;
+                # the application script provided by the Application Plugin does not handle signals properly, so we target the entire
+                # process group, which contains the JVM process
+                "setsid",
+                args.script, "query",
+                "--url", self.url,
+                "--runs", f"{args.runs}",
+                "--output", os.path.join(args.output, os.path.basename(dataset_path), memory_profile if memory_profile else "default"),
+            ] + query_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL
+        )
+        self.stdout_thread = Thread(target=self._read_stdout)
+        self.stdout_thread.start()
+
+        # With the thread active, we now busy loop until the process is done or we hit a timeout
+        self._update_current_time()
+        while self.proc.poll() is None:
+            # Sleeping until the next timeout check
+            sleep(max(self._current_timeout - time(), 1))
+            # Checking if we've hit the timeout
+            if time() > self._current_timeout:
+                # Timeout hit, killing the process and throwing an error
+                self._shutdown()
+                raise TimeoutError(f"Evaluator timed out, assuming the endpoint is unresponsive.")
+        # Even though we finished regularly, we need to ensure the thread is done
+        self._shutdown()
+
+    def _update_current_time(self):
+        # Allowing 10 seconds of idle time before we assume the endpoint is unresponsive
+        self._current_timeout = time() + 10
+
+    def _shutdown(self):
+        if self.proc:
+            # Sending a SIGKILL to the entire process group to ensure everything is killed
+            print(f"Shutting down evaluator ({self.proc.pid})")
+            subprocess.Popen(['kill', '-SIGINT', f'-{self.proc.pid}']).wait()
+            self.proc.wait()
+            self.stdout_thread.join()
+            self.proc = None
+
+    def _read_stdout(self):
+        stream = self.proc.stdout if self.proc else None
+        if not stream:
+            return
+
+        def _process_stdout(char: str):
+            # We received data, so the timeout can be moved along
+            self._update_current_time()
+            sys.stdout.write(char)
+            sys.stdout.flush()
+
+        Utils.read_stream(stream, _process_stdout)
+
+
 class EndpointInstance:
     """
     A class to manage the execution of a script in a subprocess, capturing its output and handling shutdown gracefully.
@@ -136,16 +217,6 @@ class EndpointInstance:
         """
         self.stop()
 
-    def _read_stream(self, stream, callback: callable):
-        # Automatically closing the stream after we're done reading
-        with stream:
-            try:
-                for char in iter(lambda: stream.read(1), b''):
-                    if char:
-                        callback(char.decode())
-            except ValueError:
-                print(f"Error reading from stream, assuming it stopped")
-
     def _read_stdout(self):
         output_format = r"Endpoint is ready: (http://[^:]*:\d+/.*)$"
         current_line = ""
@@ -169,7 +240,7 @@ class EndpointInstance:
                     self.queue.put(url)
                 current_line = ""
 
-        self._read_stream(stream, _process_stdout)
+        Utils.read_stream(stream, _process_stdout)
 
     def _read_stderr(self):
         stream = self.proc.stderr if self.proc else None
@@ -180,7 +251,7 @@ class EndpointInstance:
             sys.stderr.write(char)
             sys.stderr.flush()
 
-        self._read_stream(stream, _process_stderr)
+        Utils.read_stream(stream, _process_stderr)
 
     def stop(self):
         """
@@ -233,7 +304,6 @@ def read_contents(file):
     with open(file, 'r') as f:
         return f.read()
 
-evaluation_timeout = 10 * len(queries) * args.runs
 # Now overwriting the queries variable with the actual contents
 queries = map(
     read_contents,
@@ -257,43 +327,17 @@ for endpoint_name in endpoints:
                 try:
                     # Waiting until the endpoint is ready and the URL is available
                     url = endpoint.await_url()
-
                     # Running the benchmark job against the endpoint URL
-                    process = subprocess.Popen(
-                        [
-                            args.script, "query",
-                            "--url", url,
-                            # FIXME - make this configurable
-                            "--runs", f"{args.runs}",
-                            "--output", os.path.join(args.output, os.path.basename(dataset_path), memory_profile if memory_profile else "default"),
-                        ] + query_args,
-                        stderr=subprocess.DEVNULL
-                    )
-
-                    # Executing the process with an extra timeout set; if it fails, we assume the endpoint DNF
-                    try:
-                        # Scaling max duration according to the number of queries, 10s per query
-                        process.wait(timeout=evaluation_timeout)
-                        if process.returncode != 0 and args.fail_fast:
-                            print(f"Error running benchmark against {url}: {process.stderr}")
-                            print(f"Stopping early")
-                            exit(1)
-                        else:
-                            sleep(1)
-                            # Now we can shut it down and go to the next endpoint
-                            print(f"Received exit code {process.returncode}")
-                            print(f"Stopping...")
-                    except subprocess.TimeoutExpired:
-                        print(f"Benchmark against {url} timed out.")
-                        process.kill()
-                        process.wait()
-                        if args.fail_fast:
-                            print(f"Stopping early due to timeout.")
-                            exit(1)
+                    evaluator = Evaluator(url)
+                    print(f"Running benchmark against {url}...")
+                    evaluator.evaluate()
                 except KeyboardInterrupt as e:
                     print("Keyboard interrupt received, stopping...")
                     print(e)
                     exit(1)
+                except TimeoutError as e:
+                    print(f"Timeout reached: {str(e)}")
+                    # We never exit here, as the evaluator timeout is not considered a failure
                 except Exception as e:
                     print(f"Unexpected error running {endpoint_name}: {str(e)}")
                     if args.fail_fast:
