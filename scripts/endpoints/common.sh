@@ -32,10 +32,8 @@ on_endpoint_ready() {
 	await_port_in_use
 
 	if [[ $EXITING == true ]]; then
-		exit 1
+		return
 	fi
-	
-	trap "echo;on_exit_requested" SIGINT
 
 	printf "\nEndpoint is ready: %s\n" "$1"
 

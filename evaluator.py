@@ -102,7 +102,8 @@ class EndpointInstance:
         print(f"Starting script: {self.script}")
         try:
             self.proc = subprocess.Popen(
-                [self.script],
+                # Ensuring the process is started in its own session to manage signals properly
+                ['setsid', self.script],
                 shell=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -139,11 +140,10 @@ class EndpointInstance:
                 for char in iter(lambda: stream.read(1), b''):
                     if char:
                         callback(char.decode())
-            except ValueError as e:
+            except ValueError:
                 print(f"Error reading from stream, assuming it stopped")
 
     def _read_stdout(self):
-        print("Reading stdout...")
         output_format = r"Endpoint is ready: (http://[^:]*:\d+/.*)$"
         current_line = ""
         stream = self.proc.stdout if self.proc else None
@@ -188,6 +188,7 @@ class EndpointInstance:
             proc=self.proc
             self.proc = None
             # Now handling its shutdown
+            print(f"Stopping script ({proc.pid})")
             proc.send_signal(subprocess.signal.SIGINT)
             print("Waiting for the script to terminate...")
             proc.wait()
@@ -280,6 +281,7 @@ for endpoint_name in endpoints:
                     except subprocess.TimeoutExpired:
                         print(f"Benchmark against {url} timed out.")
                         process.kill()
+                        process.wait()
                         if args.fail_fast:
                             print(f"Stopping early due to timeout.")
                             exit(1)
