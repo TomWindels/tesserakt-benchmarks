@@ -31,8 +31,8 @@ parser.add_argument('-q', '--queries', type=str, help='Directory containing the 
 # Adding an argument to specify the benchmark script
 parser.add_argument('-s', '--script', type=str, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "sparql-bench")), help='The location of the benchmarking script itself.')
 
-# Adding an argument to specify the memory profiles
-parser.add_argument('--profiles', type=str, default=None, help='Various memory profiles applied to the endpoints. This is a comma-separated list of max memory values, e.g., "1g,2g". If none are provided, the value set in `config.sh` is kept.')
+# Adding an argument to specify the memory range, in MB
+parser.add_argument('--memory-range', type=str, default=None, help='The memory ranges that should be evaluated. Binary search will be used to find the lower-bound limit. The range format is purely numeric, formatted as `lower,upper`, and is interpreted in MB. If none are provided, the value set in `config.sh` is kept, and no binary search is executed.')
 
 # Adding an argument to specify whether to fail fast
 parser.add_argument('--fail-fast', action='store_true', help='If set, the script will stop running endpoints as soon as one fails. Otherwise, it will continue running all endpoints regardless of failures.')
@@ -49,7 +49,15 @@ args.output = os.path.realpath(args.output)
 args.input = os.path.realpath(args.input) if args.input else None
 args.queries = os.path.realpath(args.queries) if args.queries else None
 args.script = os.path.realpath(args.script)
-args.memory_profiles = args.profiles.split(',') if args.profiles else None
+if args.memory_range:
+    args.memory_range = args.memory_range.split(',')
+    if len(args.memory_range) != 2 or not all(re.match(r'^[0-9]+$', val) for val in args.memory_range):
+        print("Error: The memory range must be in the format 'lower,upper', where both lower and upper are integers representing memory in MB.")
+        sys.exit(1)
+    args.memory_range = (int(args.memory_range[0]), int(args.memory_range[1]))
+    if args.memory_range[0] >= args.memory_range[1]:
+        print("Error: The lower bound of the memory range must be less than the upper bound.")
+        sys.exit(1)
 
 # Validating the arguments
 if not os.path.exists(args.input) or not os.path.isdir(args.input):
@@ -102,11 +110,12 @@ class Evaluator:
     A class wrapping the sparql-bench evaluator script, allowing to run queries against a given SPARQL endpoint URL.
     Throws a TimeoutError if the evaluator is idling based on stdout, indicating an unresponsive endpoint.
     """
-    def __init__(self, url: str):
+    def __init__(self, url: str, output_name: str = "default"):
         self.url = url
         self.proc = None
         self.stdout_thread = None
         self._current_timeout = None
+        self.output_name = output_name
 
     def evaluate(self):
         self.proc = subprocess.Popen(
@@ -118,7 +127,7 @@ class Evaluator:
                 args.script, "query",
                 "--url", self.url,
                 "--runs", f"{args.runs}",
-                "--output", os.path.join(args.output, os.path.basename(dataset_path), memory_profile if memory_profile else "default"),
+                "--output", os.path.join(args.output, os.path.basename(dataset_path), self.output_name),
             ] + query_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL
@@ -140,8 +149,8 @@ class Evaluator:
         self._shutdown()
 
     def _update_current_time(self):
-        # Allowing 10 seconds of idle time before we assume the endpoint is unresponsive
-        self._current_timeout = time() + 10
+        # Allowing 10 minutes of idle time before we assume the endpoint is unresponsive
+        self._current_timeout = time() + 10 * 60
 
     def _shutdown(self):
         if self.proc:
@@ -233,8 +242,6 @@ class EndpointInstance:
             # Process the current line
             if char == '\n':
                 match = re.search(output_format, current_line)
-                # print(f"format: {output_format}")
-                # print(f"currentl ine: {current_line}")
                 if match:
                     url = match.group(1)
                     self.queue.put(url)
@@ -312,34 +319,68 @@ queries = map(
 
 query_args = list(itertools.chain(*[("--query", query) for query in queries]))
 
-# Running the scripts in subprocesses
-for endpoint_name in endpoints:
-    for memory_profile in args.memory_profiles or [None]:
-        if memory_profile:
-            os.environ['JAVA_FLAGS'] = f"-Xmx{memory_profile}"
-            print(f"Running {endpoint_name} ({memory_profile})...")
+def eval(endpoint_name: str, dataset_path: str, output_name: str = "default") -> bool:
+    """
+    Evaluates a single endpoint with the given dataset.
+    Returns True if the evaluation was successful, False otherwise.
+    """
+    with EndpointInstance(endpoint_name, dataset=dataset_path) as endpoint:
+        try:
+            # Waiting until the endpoint is ready and the URL is available
+            url = endpoint.await_url()
+            # Running the benchmark job against the endpoint URL
+            evaluator = Evaluator(url, output_name=output_name)
+            print(f"Running benchmark against {url}...")
+            evaluator.evaluate()
+            return True
+        except KeyboardInterrupt as e:
+            print("Keyboard interrupt received, stopping...")
+            print(e)
+            exit(1)
+        except TimeoutError as e:
+            print(f"Timeout reached: {str(e)}")
+            # We never exit here, as the evaluator timeout is not considered a failure
+        except Exception as e:
+            print(f"Unexpected error running {endpoint_name}: {str(e)}")
+            if args.fail_fast:
+                print(f"Stopping early due to error: {str(e)}")
+                exit(1)
+    return False
+
+# In case a memory range is provided, we run the binary search to find the lower bound
+def bin_search_memory(endpoint_name:str, dataset_path:str) -> int:
+    lower, upper = args.memory_range
+    while lower < upper:
+        mid = (lower + upper) // 2
+        # Applying the memory constraint
+        os.environ['JAVA_FLAGS'] = f"-Xmx{mid}M"
+        if eval(endpoint_name=endpoint_name, dataset_path=dataset_path, output_name=str(mid)):
+            # If we reach here, the evaluation was successful, so we can try a lower memory profile
+            upper = mid
         else:
-            # Ensuring no other value is set
-            os.environ['JAVA_FLAGS'] = ""
-            print(f"Running {endpoint_name}...")
+            # If an error occurred, we need to try a higher memory profile
+            lower = mid + 1
+    return lower
+
+if args.memory_range:
+    # Validating all endpoints and datasets
+    if not os.path.exists(args.output):
+        os.makedirs(args.output)
+    with open(os.path.join(args.output, "memory_profiles.txt"), 'w') as mem_file:
+        mem_file.write("Endpoint,Dataset,Memory(MB)\n")
+        for endpoint_name in endpoints:
+            for dataset_path in listdir_abs(args.input):
+                result = bin_search_memory(endpoint_name=endpoint_name, dataset_path=dataset_path)
+                mem_file.write(f"{os.path.basename(endpoint_name)},{os.path.basename(dataset_path)},{result}\n")
+                mem_file.flush()
+
+# Otherwise, regular execution is done
+# Running the scripts in subprocesses
+else:
+    for endpoint_name in endpoints:
+        # Ensuring no other value is set
+        os.environ['JAVA_FLAGS'] = ""
+        print(f"Running {endpoint_name}...")
         for dataset_path in listdir_abs(args.input):
-            with EndpointInstance(endpoint_name, dataset=dataset_path) as endpoint:
-                try:
-                    # Waiting until the endpoint is ready and the URL is available
-                    url = endpoint.await_url()
-                    # Running the benchmark job against the endpoint URL
-                    evaluator = Evaluator(url)
-                    print(f"Running benchmark against {url}...")
-                    evaluator.evaluate()
-                except KeyboardInterrupt as e:
-                    print("Keyboard interrupt received, stopping...")
-                    print(e)
-                    exit(1)
-                except TimeoutError as e:
-                    print(f"Timeout reached: {str(e)}")
-                    # We never exit here, as the evaluator timeout is not considered a failure
-                except Exception as e:
-                    print(f"Unexpected error running {endpoint_name}: {str(e)}")
-                    if args.fail_fast:
-                        print(f"Stopping early due to error: {str(e)}")
-                        exit(1)
+            print(f"Using dataset: {dataset_path}")
+            eval(endpoint_name=endpoint_name, dataset_path=dataset_path)
