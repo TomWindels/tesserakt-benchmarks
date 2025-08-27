@@ -37,6 +37,9 @@ parser.add_argument('--profiles', type=str, default=None, help='Various memory p
 # Adding an argument to specify whether to fail fast
 parser.add_argument('--fail-fast', action='store_true', help='If set, the script will stop running endpoints as soon as one fails. Otherwise, it will continue running all endpoints regardless of failures.')
 
+# Making the number of runs configurable
+parser.add_argument('--runs', type=int, default=1, help='Number of times to run each query against each endpoint. Default is 1.')
+
 # Getting the arguments
 args = parser.parse_args()
 
@@ -230,7 +233,7 @@ def read_contents(file):
     with open(file, 'r') as f:
         return f.read()
 
-query_count = len(queries)
+evaluation_timeout = 10 * len(queries) * args.runs
 # Now overwriting the queries variable with the actual contents
 queries = map(
     read_contents,
@@ -261,7 +264,7 @@ for endpoint_name in endpoints:
                             args.script, "query",
                             "--url", url,
                             # FIXME - make this configurable
-                            "--runs", "1",
+                            "--runs", f"{args.runs}",
                             "--output", os.path.join(args.output, os.path.basename(dataset_path), memory_profile if memory_profile else "default"),
                         ] + query_args,
                         stderr=subprocess.DEVNULL
@@ -269,11 +272,8 @@ for endpoint_name in endpoints:
 
                     # Executing the process with an extra timeout set; if it fails, we assume the endpoint DNF
                     try:
-                        # scaling max duration according to the number of queries, 10s per query
-                        timeout = 1 * query_count
-                        print(f"Waiting for the benchmark to complete (timeout set to {timeout}s)...")
-                        sleep(1)
-                        process.wait(timeout=timeout)
+                        # Scaling max duration according to the number of queries, 10s per query
+                        process.wait(timeout=evaluation_timeout)
                         if process.returncode != 0 and args.fail_fast:
                             print(f"Error running benchmark against {url}: {process.stderr}")
                             print(f"Stopping early")
