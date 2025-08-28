@@ -10,6 +10,9 @@ import argparse
 import re
 import itertools
 
+# TODO: make this a command argument
+GENERAL_JVM_ARGS="-XX:+UseStringDeduplication"
+
 # Defining the argument parser
 parser = argparse.ArgumentParser(description="Benchmark orchestrator, managing SPARQL endpoints, changing their configuration, and running benchmarks against them.")
 
@@ -116,9 +119,11 @@ class Evaluator:
         self.url = url
         self.proc = None
         self.stdout_thread = None
+        self.stderr_thread = None
         self._current_timeout = None
         self.output_name = output_name
         self.runs = iterations
+        self.errors = []
 
     def evaluate(self):
         self.proc = subprocess.Popen(
@@ -136,7 +141,9 @@ class Evaluator:
             stderr=subprocess.DEVNULL
         )
         self.stdout_thread = Thread(target=self._read_stdout)
+        self.stderr_thread = Thread(target=self._read_stderr)
         self.stdout_thread.start()
+        self.stderr_thread.start()
 
         # With the thread active, we now busy loop until the process is done or we hit a timeout
         self._update_current_time()
@@ -148,6 +155,10 @@ class Evaluator:
                 raise TimeoutError(f"Evaluator timed out, assuming the endpoint is unresponsive.")
             # Sleeping, periodically checking the timeout & process status
             sleep(1)
+            # If we have an error, we raise it, halting execution
+            if self.errors:
+                self._shutdown()
+                raise RuntimeError(f"Evaluator encountered an error: {"\n".join(self.errors)}")
         # Even though we finished regularly, we need to ensure the thread is done
         self._shutdown()
 
@@ -161,22 +172,47 @@ class Evaluator:
             print(f"Shutting down evaluator ({self.proc.pid})")
             subprocess.Popen(['kill', '-SIGINT', f'-{self.proc.pid}']).wait()
             self.proc.wait()
-            self.stdout_thread.join()
             self.proc = None
+            self.stdout_thread.join()
+            self.stderr_thread.join()
 
     def _read_stdout(self):
         stream = self.proc.stdout if self.proc else None
         if not stream:
             return
+        current_line = ""
 
         def _process_stdout(char: str):
             # We received data, so the timeout can be moved along
             self._update_current_time()
             sys.stdout.write(char)
             sys.stdout.flush()
+            nonlocal current_line
+            current_line += char
+            # Notifying the active evaluation of any failed queries
+            if char == '\n':
+                if "fail" in current_line:
+                    self.errors.append("evaluation failure detected")
+                current_line = ""
 
         Utils.read_stream(stream, _process_stdout)
 
+    def _read_stderr(self):
+        stream = self.proc.stderr if self.proc else None
+        if not stream:
+            return
+        current_error = ""
+
+        def _process_stderr(char: str):
+            nonlocal current_error
+            if char != '\n':
+                current_error += char
+            else:
+                if current_error:
+                    self.errors.append(current_error)
+                    current_error = ""
+
+        Utils.read_stream(stream, _process_stderr)
 
 class EndpointInstance:
     """
@@ -281,7 +317,7 @@ class EndpointInstance:
             self.stderr_thread.join()
             print(f"Script {self.script} stopped.")
 
-    def await_url(self):
+    def await_url(self, timeout: float):
         """
         Waits for the script to output a URL, which is expected to be printed in the format:
         "Endpoint is ready: http://localhost:PORT/sparql" - throws an exception upon reaching the 2 minute timeout, automatically calling `stop()`.
@@ -289,11 +325,11 @@ class EndpointInstance:
         if not self.proc or not self.proc.stdout:
             raise RuntimeError("Process not started or stdout not available.")
         try:
-            return self.queue.get(timeout=120)  # Wait for up to 2 minutes for the URL to be available
+            return self.queue.get(timeout=timeout)  # Wait for up to 2 minutes for the URL to be available
         except Empty as e:
             print(f"Error: No URL received from {self.script} within the timeout period. Stopping the endpoint.")
             self.stop()
-            raise RuntimeError("No URL received from the endpoint script within the timeout period.") from e
+            raise TimeoutError("No URL received from the endpoint script within the timeout period.") from e
 
 # Reading all benchmark queries based on the arguments
 if os.path.isfile(args.queries):
@@ -330,7 +366,10 @@ def eval(endpoint_name: str, dataset_path: str, output_name: str = "default", it
     with EndpointInstance(endpoint_name, dataset=dataset_path) as endpoint:
         try:
             # Waiting until the endpoint is ready and the URL is available
-            url = endpoint.await_url()
+            # The timeout is based on the file size, 5MiB ~ 1s of wait time, with a minimum of 60s
+            timeout = max(60, os.path.getsize(dataset_path) // (1024 * 1024 * 5))
+            print(f"Waiting for the endpoint to be ready ({timeout // 60} min timeout)...")
+            url = endpoint.await_url(timeout=timeout)
             # Running the benchmark job against the endpoint URL
             evaluator = Evaluator(url, output_name=output_name, iterations=iterations)
             print(f"Running benchmark against {url}...")
@@ -342,7 +381,7 @@ def eval(endpoint_name: str, dataset_path: str, output_name: str = "default", it
             exit(1)
         except TimeoutError as e:
             print(f"Timeout reached: {str(e)}")
-            # We never exit here, as the evaluator timeout is not considered a failure
+            # We never exit here, as and endpoint or evaluator timeout is not considered a failure
         except Exception as e:
             print(f"Unexpected error running {endpoint_name}: {str(e)}")
             if args.fail_fast:
@@ -356,7 +395,8 @@ def bin_search_memory(endpoint_name:str, dataset_path:str) -> int:
     while lower < upper:
         mid = (lower + upper) // 2
         # Applying the memory constraint
-        os.environ['JAVA_FLAGS'] = f"-Xmx{mid}M"
+        print(f"Evaluating a {mid} MB memory limit")
+        os.environ['JAVA_FLAGS'] = f"-Xmx{mid}M {GENERAL_JVM_ARGS}"
         if eval(endpoint_name=endpoint_name, dataset_path=dataset_path, output_name=str(mid)):
             # If we reach here, the evaluation was successful, so we can try a lower memory profile
             upper = mid
@@ -382,7 +422,7 @@ if args.memory_range:
 else:
     for endpoint_name in endpoints:
         # Ensuring no other value is set
-        os.environ['JAVA_FLAGS'] = ""
+        os.environ['JAVA_FLAGS'] = GENERAL_JVM_ARGS
         print(f"Running {endpoint_name}...")
         for dataset_path in listdir_abs(args.input):
             print(f"Using dataset: {dataset_path}")
