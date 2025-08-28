@@ -60,7 +60,7 @@ ${ENDPOINT_SCRIPT} start ${FLAGS}
 # With the data configured and the endpoint active, we can move to the script location again
 cd "${SCRIPT_DIR}" || exit 1
 
-on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/"
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/""http://localhost:${ENDPOINT_PORT}/"
 
 # We launched it, so we stop it too
 ${ENDPOINT_SCRIPT} stop ${ID_FLAGS} 

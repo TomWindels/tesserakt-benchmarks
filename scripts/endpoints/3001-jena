@@ -16,7 +16,7 @@ ENDPOINT_JAR="${BENCHMARK_ROOT}/bin/jena-endpoint.jar"
 source common.sh
 
 # `sparql` is the endpoint path
-FLAGS="--port ${ENDPOINT_PORT} sparql"
+FLAGS="--update --port ${ENDPOINT_PORT} sparql"
 
 if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	FLAGS="--file ${ENDPOINT_DATA} ${FLAGS}"
@@ -30,7 +30,7 @@ fi
 # setsid "${JAVA_BIN}" ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS}
 # ) &
 
-on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql"
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql/query" "http://localhost:${ENDPOINT_PORT}/sparql/update"
 
 kill -SIGKILL $!
 

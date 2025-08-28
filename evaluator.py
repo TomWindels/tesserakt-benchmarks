@@ -9,6 +9,7 @@ from queue import Queue, Empty
 import argparse
 import re
 import itertools
+from attr import dataclass
 
 # TODO: make this a command argument
 GENERAL_JVM_ARGS="-XX:+UseStringDeduplication"
@@ -110,13 +111,22 @@ class Utils:
             except ValueError:
                 print(f"Error reading from stream, assuming it stopped")
 
+@dataclass
+class EndpointInfo:
+    """
+    A simple data class to hold information about an active endpoint.
+    """
+    query_url: str
+    update_url: str | None = None
+
 class Evaluator:
     """
     A class wrapping the sparql-bench evaluator script, allowing to run queries against a given SPARQL endpoint URL.
     Throws a TimeoutError if the evaluator is idling based on stdout, indicating an unresponsive endpoint.
     """
-    def __init__(self, url: str, output_name: str = "default", iterations: int = 1):
-        self.url = url
+    def __init__(self, endpoint_info: EndpointInfo, output_name: str = "default", iterations: int = 1):
+        self.query_url = endpoint_info.query_url
+        self.update_url = endpoint_info.update_url
         self.proc = None
         self.stdout_thread = None
         self.stderr_thread = None
@@ -133,7 +143,7 @@ class Evaluator:
                 # process group, which contains the JVM process
                 "setsid",
                 args.script, "query",
-                "--url", self.url,
+                "--url", self.query_url if self.update_url is None else f"{self.query_url},{self.update_url}",
                 "--runs", f"{self.runs}",
                 "--output", os.path.join(args.output, os.path.basename(dataset_path), self.output_name),
             ] + query_args,
@@ -266,7 +276,7 @@ class EndpointInstance:
         self.stop()
 
     def _read_stdout(self):
-        output_format = r"Endpoint is ready: (http://[^:]*:\d+/.*)$"
+        output_format = r"Endpoint is ready: (http://[^: ]*:\d+/.*) (http://[^: ]*:\d+/.*)?$"
         current_line = ""
         stream = self.proc.stdout if self.proc else None
         if not stream:
@@ -282,8 +292,9 @@ class EndpointInstance:
             if char == '\n':
                 match = re.search(output_format, current_line)
                 if match:
-                    url = match.group(1)
-                    self.queue.put(url)
+                    query_url = match.group(1)
+                    update_url = match.group(2)
+                    self.queue.put(EndpointInfo(query_url, update_url))
                 current_line = ""
 
         Utils.read_stream(stream, _process_stdout)
@@ -317,7 +328,7 @@ class EndpointInstance:
             self.stderr_thread.join()
             print(f"Script {self.script} stopped.")
 
-    def await_url(self, timeout: float):
+    def await_endpoint_info(self, timeout: float) -> EndpointInfo:
         """
         Waits for the script to output a URL, which is expected to be printed in the format:
         "Endpoint is ready: http://localhost:PORT/sparql" - throws an exception upon reaching the 2 minute timeout, automatically calling `stop()`.
@@ -369,10 +380,10 @@ def eval(endpoint_name: str, dataset_path: str, output_name: str = "default", it
             # The timeout is based on the file size, 5MiB ~ 1s of wait time, with a minimum of 60s
             timeout = max(60, os.path.getsize(dataset_path) // (1024 * 1024 * 5))
             print(f"Waiting for the endpoint to be ready ({timeout // 60} min timeout)...")
-            url = endpoint.await_url(timeout=timeout)
+            endpoint_info = endpoint.await_endpoint_info(timeout=timeout)
             # Running the benchmark job against the endpoint URL
-            evaluator = Evaluator(url, output_name=output_name, iterations=iterations)
-            print(f"Running benchmark against {url}...")
+            evaluator = Evaluator(endpoint_info, output_name=output_name, iterations=iterations)
+            print(f"Running benchmark against {endpoint_info.query_url}...")
             evaluator.evaluate()
             return True
         except KeyboardInterrupt as e:

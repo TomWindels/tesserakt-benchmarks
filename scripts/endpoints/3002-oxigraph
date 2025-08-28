@@ -32,7 +32,7 @@ if [[ "${ENDPOINT_DATA}" != "" ]]; then
 fi
 
 # Now we can await the endpoint to be ready and shutdown when exited, cleaning up after it
-on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/query"
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/query" "http://localhost:${ENDPOINT_PORT}/update"
 
 # We launched it, so we stop it too
 kill $!

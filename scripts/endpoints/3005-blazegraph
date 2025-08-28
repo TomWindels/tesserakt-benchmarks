@@ -28,7 +28,7 @@ if [[ "${ENDPOINT_DATA}" != "" ]]; then
 fi
 
 # Now we can await the endpoint to be ready and shutdown when exited, cleaning up after it
-on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/blazegraph/sparql"
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/blazegraph/sparql" "http://localhost:${ENDPOINT_PORT}/blazegraph/sparql"
 
 # We're done now, so we can shut it down again
 kill $!
