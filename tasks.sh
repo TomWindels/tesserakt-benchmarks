@@ -18,13 +18,13 @@ run() {
 # Actual task list
 ## Regular tests
 ### WatDiv
-run python evaluator.py -i input/watdiv/datasets -o output/regular/watdiv -q input/watdiv/queries --runs 100
+run python benchmark.py -i input/watdiv/datasets -o output/regular/watdiv -q input/watdiv/queries --runs 100
 ### BSBM (external tool)
 
 ## Replay tests
 
 ## Memory range tests
 ### WatDiv
-run python evaluator.py -i input/watdiv/datasets -o output/memory/watdiv -q watdiv/queries --memory-range 100,10000 -f "(tesserakt)|(jena)"
+run python benchmark.py -i input/watdiv/datasets -o output/memory/watdiv -q input/watdiv/queries --memory-range 100,10000 -f "(tesserakt)|(jena)"
 ### BSBM
-run python evaluator.py -i input/bsbm/datasets -o output/memory/bsbm -q input/bsbm/queries --memory-range 100,10000 -f "(tesserakt)|(jena)"
+run python benchmark.py -i input/bsbm/datasets -o output/memory/bsbm -q input/bsbm/queries --memory-range 100,10000 -f "(tesserakt)|(jena)"
