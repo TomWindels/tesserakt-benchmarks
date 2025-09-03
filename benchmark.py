@@ -106,45 +106,55 @@ endpoints = [
 
 print(f"Found {len(endpoints)} endpoint scripts in '{args.endpoints}'")
 
+def prepare_queries_or_bail(queries_path: str) -> list[str]:
+    files = None
+    # If a directory is provided, we list all .rq files in it
+    if os.path.isfile(queries_path):
+        # If a single file is provided, we treat it as the only query
+        files = [queries_path]
+    elif os.path.isdir(queries_path):
+        files = [file for file in listdir_abs(queries_path) if file.endswith('.rq') if os.path.isfile(file)]
+
+    if not files:
+        print(f"Error: The specified queries directory '{queries_path}' does not exist, not a directory or contains no queries (files ending with `.rq`).")
+        sys.exit(1)
+
+    # Mapping the various query files to their contents
+    def read_contents(file):
+        """
+        Reads the contents of a file and returns it.
+        """
+        with open(file, 'r') as f:
+            return f.read()
+
+    return [query_content for query_content in map(read_contents, files)]
+
+
 def eval_replay():
     pass
 
-def eval_regular():
-    pass
+def eval_regular(iterations: int, queries: list[str]):
+    for endpoint_name in endpoints:
+        # Ensuring no other value is set
+        os.environ['JAVA_FLAGS'] = GENERAL_JVM_ARGS
+        print(f"Running {endpoint_name}...")
+        for dataset_path in listdir_abs(args.input):
+            print(f"Using dataset: {dataset_path}")
+            eval(endpoint_name=endpoint_name, dataset_path=dataset_path, iterations=iterations, queries=queries)
 
-if args.replay:
-    eval_replay()
-else:
-    eval_regular()
+def eval_memory(range: tuple[int, int], queries: list[str]):
+    # Validating all endpoints and datasets
+    if not os.path.exists(args.output):
+        os.makedirs(args.output)
+    with open(os.path.join(args.output, "memory_profiles.txt"), 'w') as mem_file:
+        mem_file.write("Endpoint,Dataset,Memory(MB)\n")
+        for endpoint_name in endpoints:
+            for dataset_path in listdir_abs(args.input):
+                result = bin_search_memory(endpoint_name=endpoint_name, dataset_path=dataset_path, range=range, queries=queries)
+                mem_file.write(f"{os.path.basename(endpoint_name)},{os.path.basename(dataset_path)},{result}\n")
+                mem_file.flush()
 
-# TODO: this only belongs here in regular mode
-
-# Reading all benchmark queries based on the arguments
-if os.path.isfile(args.queries):
-    # If a single file is provided, we treat it as the only query
-    queries = [args.queries]
-elif os.path.isdir(args.queries):
-    # If a directory is provided, we list all .rq files in it
-    if not os.path.exists(args.queries) or not os.path.isdir(args.queries):
-        print(f"Error: The specified queries directory '{args.queries}' does not exist or is not a directory.")
-        sys.exit(1)
-    queries = [file for file in listdir_abs(args.queries) if file.endswith('.rq') if os.path.isfile(file)]
-
-# Mapping the various queries to its contents
-def read_contents(file):
-    """
-    Reads the contents of a file and returns it.
-    """
-    with open(file, 'r') as f:
-        return f.read()
-
-# Now overwriting the queries variable with the actual contents
-queries = map(
-    read_contents,
-    queries
-)
-
-def eval(endpoint_name: str, dataset_path: str, output_name: str = "default", iterations: int = 1) -> bool:
+def eval(endpoint_name: str, dataset_path: str, queries: list[str], output_name: str = "default", iterations: int = 1) -> bool:
     """
     Evaluates a single endpoint with the given dataset.
     Returns True if the evaluation was successful, False otherwise.
@@ -176,14 +186,14 @@ def eval(endpoint_name: str, dataset_path: str, output_name: str = "default", it
     return False
 
 # In case a memory range is provided, we run the binary search to find the lower bound
-def bin_search_memory(endpoint_name:str, dataset_path:str) -> int:
-    lower, upper = args.memory_range
+def bin_search_memory(endpoint_name:str, dataset_path:str, range: tuple[int], queries: list[str]) -> int:
+    lower, upper = range
     while lower < upper:
         mid = (lower + upper) // 2
         # Applying the memory constraint
         print(f"Evaluating a {mid} MB memory limit")
         os.environ['JAVA_FLAGS'] = f"-Xmx{mid}M {GENERAL_JVM_ARGS}"
-        if eval(endpoint_name=endpoint_name, dataset_path=dataset_path, output_name=str(mid)):
+        if eval(endpoint_name=endpoint_name, dataset_path=dataset_path, output_name=str(mid), queries=queries):
             # If we reach here, the evaluation was successful, so we can try a lower memory profile
             upper = mid
         else:
@@ -191,25 +201,14 @@ def bin_search_memory(endpoint_name:str, dataset_path:str) -> int:
             lower = mid + 1
     return lower
 
-if args.memory_range:
-    # Validating all endpoints and datasets
-    if not os.path.exists(args.output):
-        os.makedirs(args.output)
-    with open(os.path.join(args.output, "memory_profiles.txt"), 'w') as mem_file:
-        mem_file.write("Endpoint,Dataset,Memory(MB)\n")
-        for endpoint_name in endpoints:
-            for dataset_path in listdir_abs(args.input):
-                result = bin_search_memory(endpoint_name=endpoint_name, dataset_path=dataset_path)
-                mem_file.write(f"{os.path.basename(endpoint_name)},{os.path.basename(dataset_path)},{result}\n")
-                mem_file.flush()
-
-# Otherwise, regular execution is done
-# Running the scripts in subprocesses
-else:
-    for endpoint_name in endpoints:
-        # Ensuring no other value is set
-        os.environ['JAVA_FLAGS'] = GENERAL_JVM_ARGS
-        print(f"Running {endpoint_name}...")
-        for dataset_path in listdir_abs(args.input):
-            print(f"Using dataset: {dataset_path}")
-            eval(endpoint_name=endpoint_name, dataset_path=dataset_path, iterations=args.runs)
+if __name__ == "__main__":
+    if args.replay:
+        eval_replay()
+    else:
+        # Regular evaluator will be used, which requires queries to operate, reading all benchmark queries based on the arguments
+        queries = prepare_queries_or_bail(args.queries)
+        print(f"Loaded {len(queries)} queries from '{args.queries}'")
+        if args.memory_range:
+            eval_memory(range=args.memory_range, queries=queries)
+        else:
+            eval_regular(iterations=args.runs, queries=queries)
