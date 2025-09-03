@@ -157,9 +157,9 @@ def eval(endpoint_name: str, dataset_path: str, output_name: str = "default", it
             print(f"Waiting for the endpoint to be ready ({timeout // 60} min timeout)...")
             endpoint_info = endpoint.await_endpoint_info(timeout=timeout)
             # Running the benchmark job against the endpoint URL
-            evaluator = RegularEvaluator(endpoint_info, output_name=output_name, iterations=iterations)
+            evaluator = RegularEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name=output_name, iterations=iterations)
             print(f"Running benchmark against {endpoint_info.query_url}...")
-            evaluator.evaluate(queries=queries)
+            evaluator.evaluate(dataset_path=dataset_path, queries=queries)
             return True
         except KeyboardInterrupt as e:
             print("Keyboard interrupt received, stopping...")

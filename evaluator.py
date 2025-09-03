@@ -7,17 +7,16 @@ from time import sleep, time
 from utils import EndpointInfo, Utils
 
 
-class RegularEvaluator:
+class Evaluator:
     """
-    A class wrapping the sparql-bench evaluator script, allowing to run queries against a given SPARQL endpoint URL.
+    A class wrapping the sparql-bench evaluator script, allowing a fixed command to be issued.
     Throws a TimeoutError if the evaluator is idling based on stdout, indicating an unresponsive endpoint.
     """
-    def __init__(self, endpoint_info: EndpointInfo, script: str, output_loc: str, dataset_path: str, output_name: str = "default", iterations: int = 1):
+    def __init__(self, endpoint_info: EndpointInfo, script: str, output_loc: str, output_name: str = "default", iterations: int = 1):
         self.query_url = endpoint_info.query_url
         self.update_url = endpoint_info.update_url
         self.script = script
         self.output_loc = output_loc
-        self.dataset_name = os.path.basename(dataset_path)
         self.proc = None
         self.stdout_thread = None
         self.stderr_thread = None
@@ -26,19 +25,15 @@ class RegularEvaluator:
         self.runs = iterations
         self.errors = []
 
-    def evaluate(self, queries: list[str]):
-        query_args = list(itertools.chain(*[("--query", query) for query in queries]))
+    def evaluate(self, cmd: list[str]):
         self.proc = subprocess.Popen(
             [
                 # Ensuring the process is started in its own session to manage signals properly;
                 # the application script provided by the Application Plugin does not handle signals properly, so we target the entire
                 # process group, which contains the JVM process
                 "setsid",
-                self.script, "query",
-                "--url", self.query_url if self.update_url is None else f"{self.query_url},{self.update_url}",
-                "--runs", f"{self.runs}",
-                "--output", os.path.join(self.output_loc, self.dataset_name, self.output_name),
-            ] + query_args,
+                self.script,
+            ] + cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL
         )
@@ -115,6 +110,29 @@ class RegularEvaluator:
                     current_error = ""
 
         Utils.read_stream(stream, _process_stderr)
+
+
+class RegularEvaluator(Evaluator):
+    def evaluate(self, dataset_path: str, queries: list[str]):
+        query_args = list(itertools.chain(*[("--query", query) for query in queries]))
+        Evaluator.evaluate(self, [
+            "query",
+            "--url", self.query_url if self.update_url is None else f"{self.query_url},{self.update_url}",
+            "--runs", f"{self.runs}",
+            "--output", os.path.join(self.output_loc, os.path.basename(dataset_path), self.output_name),
+        ] + query_args)
+
+
+class ReplayEvaluator(Evaluator):
+    def evaluate(self, replay_files: list[str]):
+        assert self.update_url is not None, "ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint"
+        replay_args = list(itertools.chain(*[("--input", file) for file in replay_files]))
+        Evaluator.evaluate(self, [
+            "replay",
+            "--url", f"{self.query_url},{self.update_url}",
+            "--runs", f"{self.runs}",
+            "--output", os.path.join(self.output_loc, self.output_name),
+        ] + replay_args)
 
 
 if __name__ == "__main__":
