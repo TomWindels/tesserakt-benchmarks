@@ -9,6 +9,8 @@ if [ -f "$LOGFILE" ]; then
     exit 1
 fi
 
+mkdir -p "$(dirname "$LOGFILE")"
+
 touch "$LOGFILE"
 
 run() {
