@@ -170,14 +170,34 @@ def eval_memory(range: tuple[int, int], queries: list[str]):
                 mem_file.write(f"{os.path.basename(endpoint_name)},{os.path.basename(dataset_path)},{result}\n")
                 mem_file.flush()
 
-def endpoint_eval_replay(endpoint_name: str, benchmarks: list[str], output_name: str = "default", iterations: int = 1) -> bool:
-    def exec_eval(endpoint_info: EndpointInfo):
+def endpoint_eval_replay(endpoint_name: str, benchmarks: list[str], iterations: int = 1):
+    def exec_eval(name: str, endpoint_info: EndpointInfo):
         assert endpoint_info.update_url is not None, f"ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint (data {endpoint_info})"
-        evaluator = ReplayEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name=output_name, iterations=iterations)
+        evaluator = ReplayEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name=name, iterations=iterations)
         print(f"Running benchmark against {endpoint_info.query_url}...")
         evaluator.evaluate(replay_files=benchmarks)
 
-    endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval)
+    def exec_eval_no_cache(endpoint_info: EndpointInfo):
+        # Disabling any caching mechanism for the no-cache run
+        os.environ['ENABLE_QUERY_CACHE'] = '0'
+        exec_eval('no-cache', endpoint_info)
+
+    def exec_eval_with_cache(endpoint_info: EndpointInfo):
+        # Enabling the caching mechanism for the cache run
+        os.environ['ENABLE_QUERY_CACHE'] = '1'
+        exec_eval('cache', endpoint_info)
+
+    # Running the evaluation twice, once with and once without caching
+    try:
+        endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval_no_cache)
+        endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval_with_cache)
+    except Exception as e:
+        print(f"Unexpected error during replay evaluation: {str(e)}")
+        print(traceback.format_exc())
+        print("Assuming the endpoint failed, skipping any further evaluations.")
+        if args.fail_fast:
+            print(f"Stopping early due to error: {str(e)}")
+            exit(1)
 
 def endpoint_eval_regular(endpoint_name: str, dataset_path: str, queries: list[str], output_name: str = "default", iterations: int = 1) -> bool:
     def exec_eval(endpoint_info: EndpointInfo):
