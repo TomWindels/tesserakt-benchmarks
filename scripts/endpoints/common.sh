@@ -35,9 +35,9 @@ on_endpoint_ready() {
 		return
 	fi
 
-	printf "\nEndpoint is ready: %s %s\n" "$1" "$2"
+	printf "\nEndpoint is ready: %s %s %s\n" "$@"
 
-	echo "Use ^C / SIGINT to initiate shutdown, e.g. \`kill -SIGINT $(echo $$)\`"
+	echo "Use ^C / SIGINT to initiate shutdown, e.g. \`kill -SIGINT $$\`"
 
 	while [[ $EXITING == false ]]; do
 		sleep 1

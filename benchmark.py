@@ -5,10 +5,13 @@ import os
 import sys
 import argparse
 import re
+import traceback
+from typing import Callable
 
 # Custom helpers
 from endpoint import EndpointInstance
-from evaluator import RegularEvaluator
+from evaluator import RegularEvaluator, ReplayEvaluator
+from utils import EndpointInfo
 
 # TODO: make this a command argument
 GENERAL_JVM_ARGS="-XX:+UseStringDeduplication"
@@ -106,6 +109,13 @@ endpoints = [
 
 print(f"Found {len(endpoints)} endpoint scripts in '{args.endpoints}'")
 
+def read_file_or_folder(path: str) -> list[str] | None:
+    if os.path.isfile(path):
+        return [path]
+    elif os.path.isdir(path):
+        return [file for file in listdir_abs(path) if os.path.isfile(file)]
+    return None
+
 def prepare_queries_or_bail(queries_path: str) -> list[str]:
     files = None
     # If a directory is provided, we list all .rq files in it
@@ -114,6 +124,8 @@ def prepare_queries_or_bail(queries_path: str) -> list[str]:
         files = [queries_path]
     elif os.path.isdir(queries_path):
         files = [file for file in listdir_abs(queries_path) if file.endswith('.rq') if os.path.isfile(file)]
+    files = read_file_or_folder(queries_path) if files is None else files
+    files = [file for file in files if file.endswith('.rq')]
 
     if not files:
         print(f"Error: The specified queries directory '{queries_path}' does not exist, not a directory or contains no queries (files ending with `.rq`).")
@@ -127,11 +139,15 @@ def prepare_queries_or_bail(queries_path: str) -> list[str]:
         with open(file, 'r') as f:
             return f.read()
 
-    return [query_content for query_content in map(read_contents, files)]
+    return [read_contents(query_file) for query_file in files]
 
 
-def eval_replay():
-    pass
+def eval_replay(iterations: int, benchmarks: list[str]):
+    for endpoint_name in endpoints:
+        # Ensuring no other value is set
+        os.environ['JAVA_FLAGS'] = GENERAL_JVM_ARGS
+        print(f"Running {endpoint_name}...")
+        endpoint_eval_replay(endpoint_name=endpoint_name, iterations=iterations, benchmarks=benchmarks)
 
 def eval_regular(iterations: int, queries: list[str]):
     for endpoint_name in endpoints:
@@ -140,7 +156,7 @@ def eval_regular(iterations: int, queries: list[str]):
         print(f"Running {endpoint_name}...")
         for dataset_path in listdir_abs(args.input):
             print(f"Using dataset: {dataset_path}")
-            eval(endpoint_name=endpoint_name, dataset_path=dataset_path, iterations=iterations, queries=queries)
+            endpoint_eval_regular(endpoint_name=endpoint_name, dataset_path=dataset_path, iterations=iterations, queries=queries)
 
 def eval_memory(range: tuple[int, int], queries: list[str]):
     # Validating all endpoints and datasets
@@ -154,22 +170,38 @@ def eval_memory(range: tuple[int, int], queries: list[str]):
                 mem_file.write(f"{os.path.basename(endpoint_name)},{os.path.basename(dataset_path)},{result}\n")
                 mem_file.flush()
 
-def eval(endpoint_name: str, dataset_path: str, queries: list[str], output_name: str = "default", iterations: int = 1) -> bool:
+def endpoint_eval_replay(endpoint_name: str, benchmarks: list[str], output_name: str = "default", iterations: int = 1) -> bool:
+    def exec_eval(endpoint_info: EndpointInfo):
+        assert endpoint_info.update_url is not None, f"ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint (data {endpoint_info})"
+        evaluator = ReplayEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name=output_name, iterations=iterations)
+        print(f"Running benchmark against {endpoint_info.query_url}...")
+        evaluator.evaluate(replay_files=benchmarks)
+
+    endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval)
+
+def endpoint_eval_regular(endpoint_name: str, dataset_path: str, queries: list[str], output_name: str = "default", iterations: int = 1) -> bool:
+    def exec_eval(endpoint_info: EndpointInfo):
+        evaluator = RegularEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name=output_name, iterations=iterations)
+        print(f"Running benchmark against {endpoint_info.query_url}...")
+        evaluator.evaluate(dataset_path=dataset_path, queries=queries)
+
+    endpoint_eval(endpoint_name=endpoint_name, dataset_path=dataset_path, on_endpoint_ready=exec_eval)
+
+def endpoint_eval(endpoint_name: str, dataset_path: str | None, on_endpoint_ready: Callable[[EndpointInfo], None]) -> bool:
     """
-    Evaluates a single endpoint with the given dataset.
+    Evaluates a single endpoint with the given dataset, executing a callback for the actual evaluation implementation to be started.
     Returns True if the evaluation was successful, False otherwise.
     """
     with EndpointInstance(endpoint_name, dataset=dataset_path) as endpoint:
         try:
             # Waiting until the endpoint is ready and the URL is available
             # The timeout is based on the file size, 5MiB ~ 1s of wait time, with a minimum of 60s
-            timeout = max(60, os.path.getsize(dataset_path) // (1024 * 1024 * 5))
+            filesize_hint_bytes = os.path.getsize(dataset_path) if dataset_path and os.path.exists(dataset_path) else 0
+            timeout = max(60, filesize_hint_bytes // (1024 * 1024 * 5))
             print(f"Waiting for the endpoint to be ready ({timeout // 60} min timeout)...")
             endpoint_info = endpoint.await_endpoint_info(timeout=timeout)
             # Running the benchmark job against the endpoint URL
-            evaluator = RegularEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name=output_name, iterations=iterations)
-            print(f"Running benchmark against {endpoint_info.query_url}...")
-            evaluator.evaluate(dataset_path=dataset_path, queries=queries)
+            on_endpoint_ready(endpoint_info)
             return True
         except KeyboardInterrupt as e:
             print("Keyboard interrupt received, stopping...")
@@ -180,6 +212,7 @@ def eval(endpoint_name: str, dataset_path: str, queries: list[str], output_name:
             # We never exit here, as and endpoint or evaluator timeout is not considered a failure
         except Exception as e:
             print(f"Unexpected error running {endpoint_name}: {str(e)}")
+            print(traceback.format_exc())
             if args.fail_fast:
                 print(f"Stopping early due to error: {str(e)}")
                 exit(1)
@@ -193,7 +226,7 @@ def bin_search_memory(endpoint_name:str, dataset_path:str, range: tuple[int], qu
         # Applying the memory constraint
         print(f"Evaluating a {mid} MB memory limit")
         os.environ['JAVA_FLAGS'] = f"-Xmx{mid}M {GENERAL_JVM_ARGS}"
-        if eval(endpoint_name=endpoint_name, dataset_path=dataset_path, output_name=str(mid), queries=queries):
+        if endpoint_eval_regular(endpoint_name=endpoint_name, dataset_path=dataset_path, output_name=str(mid), queries=queries):
             # If we reach here, the evaluation was successful, so we can try a lower memory profile
             upper = mid
         else:
@@ -203,7 +236,9 @@ def bin_search_memory(endpoint_name:str, dataset_path:str, range: tuple[int], qu
 
 if __name__ == "__main__":
     if args.replay:
-        eval_replay()
+        # The input is assumed to be of the replay format
+        benchmarks = read_file_or_folder(args.input)
+        eval_replay(iterations=args.runs, benchmarks=benchmarks)
     else:
         # Regular evaluator will be used, which requires queries to operate, reading all benchmark queries based on the arguments
         queries = prepare_queries_or_bail(args.queries)

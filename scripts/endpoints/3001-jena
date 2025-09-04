@@ -15,6 +15,12 @@ ENDPOINT_JAR="${BENCHMARK_ROOT}/bin/jena-endpoint.jar"
 
 source common.sh
 
+rm -rf /tmp/jena
+mkdir -p /tmp/jena
+cat > /tmp/jena/log4j2.properties<< EOF
+rootLogger.level = ERROR
+EOF
+
 # `sparql` is the endpoint path
 FLAGS="--update --port ${ENDPOINT_PORT} sparql"
 
@@ -24,11 +30,7 @@ else
 	FLAGS="--mem ${FLAGS}"
 fi
 
-"${JAVA_BIN}" ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS} &
-
-# (
-# setsid "${JAVA_BIN}" ${JAVA_FLAGS} -jar ${ENDPOINT_JAR} ${FLAGS}
-# ) &
+"${JAVA_BIN}" ${JAVA_FLAGS} -Dlog4j2.configurationFile=/tmp/jena/log4j2.properties -jar ${ENDPOINT_JAR} ${FLAGS} &
 
 on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql/query" "http://localhost:${ENDPOINT_PORT}/sparql/update"
 

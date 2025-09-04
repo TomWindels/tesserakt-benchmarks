@@ -19,6 +19,15 @@ class EndpointInfo:
     """
     query_url: str
     update_url: str | None = None
+    update_token: str | None = None
+
+    def formatted(self) -> str:
+        if self.update_url and self.update_token:
+            return f"{self.query_url},{self.update_url},{self.update_token}"
+        elif self.update_url:
+            return f"{self.query_url},{self.update_url}"
+        else:
+            return self.query_url
 
 if __name__ == "__main__":
     print("Error: This script is intended to be imported as a module, not run directly.")

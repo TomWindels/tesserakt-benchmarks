@@ -19,7 +19,7 @@ source common.sh
 
 # A subset of the total flags, responsible for identifying the container (used to both start and stop the endpoint)
 ID_FLAGS="--name qlever_endpoint --server-container qlever-container"
-FLAGS="--port ${ENDPOINT_PORT} --description qlever ${ID_FLAGS}"
+FLAGS="--port ${ENDPOINT_PORT} --description qlever ${ID_FLAGS} --access-token benchmark"
 
 # Assumes we're currently in the correct location for the index to be created
 create_index() {
@@ -60,7 +60,7 @@ ${ENDPOINT_SCRIPT} start ${FLAGS}
 # With the data configured and the endpoint active, we can move to the script location again
 cd "${SCRIPT_DIR}" || exit 1
 
-on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/""http://localhost:${ENDPOINT_PORT}/"
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/" "http://localhost:${ENDPOINT_PORT}/" "benchmark"
 
 # We launched it, so we stop it too
 ${ENDPOINT_SCRIPT} stop ${ID_FLAGS} 

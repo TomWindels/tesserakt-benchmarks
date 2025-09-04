@@ -13,8 +13,7 @@ class Evaluator:
     Throws a TimeoutError if the evaluator is idling based on stdout, indicating an unresponsive endpoint.
     """
     def __init__(self, endpoint_info: EndpointInfo, script: str, output_loc: str, output_name: str = "default", iterations: int = 1):
-        self.query_url = endpoint_info.query_url
-        self.update_url = endpoint_info.update_url
+        self.endpoint = endpoint_info
         self.script = script
         self.output_loc = output_loc
         self.proc = None
@@ -35,7 +34,7 @@ class Evaluator:
                 self.script,
             ] + cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.PIPE
         )
         self.stdout_thread = Thread(target=self._read_stdout)
         self.stderr_thread = Thread(target=self._read_stderr)
@@ -76,6 +75,7 @@ class Evaluator:
     def _read_stdout(self):
         stream = self.proc.stdout if self.proc else None
         if not stream:
+            print("No stdout stream available")
             return
         current_line = ""
 
@@ -97,17 +97,12 @@ class Evaluator:
     def _read_stderr(self):
         stream = self.proc.stderr if self.proc else None
         if not stream:
+            print("No stderr stream available")
             return
-        current_error = ""
 
         def _process_stderr(char: str):
-            nonlocal current_error
-            if char != '\n':
-                current_error += char
-            else:
-                if current_error:
-                    self.errors.append(current_error)
-                    current_error = ""
+            sys.stdout.write(char)
+            sys.stdout.flush()
 
         Utils.read_stream(stream, _process_stderr)
 
@@ -117,7 +112,7 @@ class RegularEvaluator(Evaluator):
         query_args = list(itertools.chain(*[("--query", query) for query in queries]))
         Evaluator.evaluate(self, [
             "query",
-            "--url", self.query_url if self.update_url is None else f"{self.query_url},{self.update_url}",
+            "--url", self.endpoint.formatted(),
             "--runs", f"{self.runs}",
             "--output", os.path.join(self.output_loc, os.path.basename(dataset_path), self.output_name),
         ] + query_args)
@@ -125,11 +120,11 @@ class RegularEvaluator(Evaluator):
 
 class ReplayEvaluator(Evaluator):
     def evaluate(self, replay_files: list[str]):
-        assert self.update_url is not None, "ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint"
+        assert self.endpoint.update_url is not None, "ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint"
         replay_args = list(itertools.chain(*[("--input", file) for file in replay_files]))
         Evaluator.evaluate(self, [
             "replay",
-            "--url", f"{self.query_url},{self.update_url}",
+            "--url", self.endpoint.formatted(),
             "--runs", f"{self.runs}",
             "--output", os.path.join(self.output_loc, self.output_name),
         ] + replay_args)

@@ -37,7 +37,7 @@ TransactionFile			= /tmp/virtuoso/virtuoso-temp.trx
 [Parameters]
 ; used with the "isql" command, leaving it to the default value
 ServerPort			= 1111
-DirsAllowed			= $(dirname ${ENDPOINT_DATA})
+DirsAllowed			= $(dirname ${ENDPOINT_DATA} 2> /dev/null || echo "")
 
 [HTTPServer]
 ServerPort			= ${ENDPOINT_PORT}
@@ -63,7 +63,7 @@ fi
 on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql?default-graph-uri=urn:graph:test"
 
 # We launched it, so we stop it too
-kill $!
+kill -SIGKILL $!
 
 # Cleaning it up
 rm -rf /tmp/virtuoso

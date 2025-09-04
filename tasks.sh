@@ -22,7 +22,7 @@ run python benchmark.py -i input/watdiv/datasets -o output/regular/watdiv -q inp
 ### BSBM (external tool)
 
 ## Replay tests
-
+run python benchmark.py -i input/replay -o output/replay --replay
 ## Memory range tests
 ### WatDiv
 run python benchmark.py -i input/watdiv/datasets -o output/memory/watdiv -q input/watdiv/queries --memory-range 100,10000 -f "(tesserakt)|(jena)"

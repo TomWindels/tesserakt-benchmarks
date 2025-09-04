@@ -60,7 +60,7 @@ class EndpointInstance:
         self.stop()
 
     def _read_stdout(self):
-        output_format = r"Endpoint is ready: (http://[^: ]*:\d+/.*) (http://[^: ]*:\d+/.*)?$"
+        output_format = r"Endpoint is ready: (http://[^: ]*:\d+[^ ]*) ?(http://[^: ]*:\d+[^ ]*)? ?([a-zA-Z0-9]+)?$"
         current_line = ""
         stream = self.proc.stdout if self.proc else None
         if not stream:
@@ -78,7 +78,8 @@ class EndpointInstance:
                 if match:
                     query_url = match.group(1)
                     update_url = match.group(2)
-                    self.queue.put(EndpointInfo(query_url, update_url))
+                    update_token = match.group(3)
+                    self.queue.put(EndpointInfo(query_url, update_url, update_token))
                 current_line = ""
 
         Utils.read_stream(stream, _process_stdout)
