@@ -24,15 +24,10 @@ class Evaluator:
         self.runs = iterations
         self.errors = []
 
-    def evaluate(self, cmd: list[str]):
+    def evaluate(self, cmd: list[str], cwd: str | None = None):
         self.proc = subprocess.Popen(
-            [
-                # Ensuring the process is started in its own session to manage signals properly;
-                # the application script provided by the Application Plugin does not handle signals properly, so we target the entire
-                # process group, which contains the JVM process
-                "setsid",
-                self.script,
-            ] + cmd,
+            cmd,
+            cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -106,28 +101,54 @@ class Evaluator:
 
         Utils.read_stream(stream, _process_stderr)
 
+class ScriptEvaluator(Evaluator):
+    def evaluate(self, cmd: list[str]):
+        Evaluator.evaluate(self,
+            [
+                # Ensuring the process is started in its own session to manage signals properly;
+                # the application script provided by the Application Plugin does not handle signals properly, so we target the entire
+                # process group, which contains the JVM process
+                "setsid",
+                self.script,
+            ] + cmd
+        )
 
-class RegularEvaluator(Evaluator):
+class RegularEvaluator(ScriptEvaluator):
     def evaluate(self, dataset_path: str, queries: list[str]):
         query_args = list(itertools.chain(*[("--query", query) for query in queries]))
-        Evaluator.evaluate(self, [
+        ScriptEvaluator.evaluate(self, [
             "query",
             "--url", self.endpoint.formatted(),
             "--runs", f"{self.runs}",
             "--output", os.path.join(self.output_loc, os.path.basename(dataset_path), self.output_name),
         ] + query_args)
 
-
-class ReplayEvaluator(Evaluator):
+class ReplayEvaluator(ScriptEvaluator):
     def evaluate(self, replay_files: list[str]):
         assert self.endpoint.update_url is not None, "ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint"
         replay_args = list(itertools.chain(*[("--input", file) for file in replay_files]))
-        Evaluator.evaluate(self, [
+        ScriptEvaluator.evaluate(self, [
             "replay",
             "--url", self.endpoint.formatted(),
             "--runs", f"{self.runs}",
             "--output", os.path.join(self.output_loc, self.output_name),
         ] + replay_args)
+
+class BsbmEvaluator(Evaluator):
+    def evaluate(self, dataset_path: str, ucf_file: str):
+        base = os.path.join(self.output_loc, os.path.basename(dataset_path).replace('.', '-'), self.endpoint.query_url.split('localhost:')[1].replace('/', '_'))
+        os.makedirs(base)
+        Evaluator.evaluate(
+            self,
+            cmd=[
+                './' + os.path.basename(self.script),
+                "-mt", "1",
+                "-ucf", ucf_file,
+                "-o", os.path.join(base, self.output_name.replace('.', '-')) + ".xml",
+                self.endpoint.query_url,
+            ],
+            cwd=os.path.dirname(self.script)
+        )
 
 
 if __name__ == "__main__":
