@@ -1,6 +1,8 @@
 #!/bin/bash
 
-LOGFILE="output/execution-log-$(date +%s).txt"
+DATE=$(date +%s)
+
+LOGFILE="output/log-$DATE.txt"
 
 if [ -f "$LOGFILE" ]; then
     echo "Log file \`$LOGFILE\` already exists."
@@ -28,3 +30,6 @@ run python benchmark.py -i input/replay -o output/replay --replay
 run python benchmark.py -i input/watdiv/datasets -o output/memory/watdiv -t input/watdiv/queries --memory-range 100,10000 -f "(tesserakt)|(jena)"
 ### BSBM
 run python benchmark.py -i input/bsbm/datasets -o output/memory/bsbm -t input/bsbm/queries --memory-range 100,10000 -f "(tesserakt)|(jena)"
+
+# The entire output can now be compressed into a single tar
+tar -czvf "output-$DATE.tar.gz" output

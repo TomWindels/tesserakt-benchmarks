@@ -88,10 +88,6 @@ if not args.replay and not args.bsbm and not args.queries:
     sys.exit(1)
 
 # Validating the arguments
-if not os.path.exists(args.input) or not os.path.isdir(args.input):
-    print(f"Error: The specified input directory '{args.input}' does not exist or is not a directory.")
-    sys.exit(1)
-
 if os.path.exists(args.output) and len(os.listdir(args.output)) > 0:
     print(f"Error: The specified output path '{args.output}' exists and is not empty!")
     sys.exit(1)
@@ -111,7 +107,12 @@ def listdir_abs(path):
     """
     Returns a list of absolute paths for all files in the given directory.
     """
-    return [os.path.join(path, file) for file in os.listdir(path)]
+    if os.path.isdir(path):
+        return [os.path.join(path, file) for file in os.listdir(path)]
+    elif os.path.isfile(path):
+        return [os.path.realpath(path)]
+    else:
+        raise FileNotFoundError(f"The specified path '{path}' is not a directory or does not exist.")
 
 # Detecting all relevant scripts
 endpoints = [
