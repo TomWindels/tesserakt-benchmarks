@@ -21,11 +21,10 @@ if [ ! -e bin/sparql-bench ]; then
     ./gradlew --no-daemon testing:bench:sparql:installDist || exit 1
 
     # Symlinking to the created launch script
-    ln -s "$(pwd)/testing/bench/sparql/build/install/sparql-bench/bin/sparql-bench" ../bin/sparql-bench
-    chmod +x ../bin/sparql-bench
-
-    # Going back to the original directory
+    # First going back, as it's possible we followed a symlink to get here
     cd "${BENCH_ROOT}" || exit 1
+    ln -s "$(realpath "build/testing/bench/sparql/build/install/sparql-bench/bin/sparql-bench")" bin/sparql-bench
+    chmod +x bin/sparql-bench
 
 fi
 
