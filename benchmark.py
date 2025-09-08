@@ -229,7 +229,7 @@ def endpoint_eval_regular(endpoint_name: str, dataset_path: str, queries: list[s
         print(f"Running benchmark against {endpoint_info.query_url}...")
         evaluator.evaluate(dataset_path=dataset_path, queries=queries)
 
-    endpoint_eval(endpoint_name=endpoint_name, dataset_path=dataset_path, on_endpoint_ready=exec_eval)
+    return endpoint_eval(endpoint_name=endpoint_name, dataset_path=dataset_path, on_endpoint_ready=exec_eval)
 
 def endpoint_eval(endpoint_name: str, dataset_path: str | None, on_endpoint_ready: Callable[[EndpointInfo], None]) -> bool:
     """
@@ -273,9 +273,11 @@ def bin_search_memory(endpoint_name:str, dataset_path:str, range: tuple[int], qu
             os.environ['JAVA_FLAGS'] = f"-Xmx{mid}M {GENERAL_JVM_ARGS}"
             if endpoint_eval_regular(endpoint_name=endpoint_name, dataset_path=dataset_path, output_name=str(mid), queries=queries):
                 # If we reach here, the evaluation was successful, so we can try a lower memory profile
+                print("Evaluation success detected")
                 upper = mid
             else:
                 # If an error occurred, we need to try a higher memory profile
+                print("Evaluation failure detected")
                 lower = mid + 1
         return lower
     finally:
