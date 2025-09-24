@@ -12,7 +12,7 @@ class Evaluator:
     A class wrapping the sparql-bench evaluator script, allowing a fixed command to be issued.
     Throws a TimeoutError if the evaluator is idling based on stdout, indicating an unresponsive endpoint.
     """
-    def __init__(self, endpoint_info: EndpointInfo, script: str, output_loc: str, output_name: str = "default", iterations: int = 1):
+    def __init__(self, endpoint_info: EndpointInfo, script: str, output_loc: str, output_name: str = "default", iterations: int = 1, timeout_seconds: int = 600):
         self.endpoint = endpoint_info
         self.script = script
         self.output_loc = output_loc
@@ -23,6 +23,7 @@ class Evaluator:
         self.output_name = output_name
         self.runs = iterations
         self.errors = []
+        self.timeout_seconds = timeout_seconds
 
     def evaluate(self, cmd: list[str], cwd: str | None = None):
         self.proc = subprocess.Popen(
@@ -41,6 +42,7 @@ class Evaluator:
         while self.proc.poll() is None:
             # Checking if we've hit the timeout
             if time() > self._current_timeout:
+                print("Timeout reached, shutting down...")
                 # Timeout hit, killing the process and throwing an error
                 self._shutdown()
                 raise TimeoutError(f"Evaluator timed out, assuming the endpoint is unresponsive.")
@@ -54,8 +56,7 @@ class Evaluator:
         self._shutdown()
 
     def _update_current_time(self):
-        # Allowing 10 minutes of idle time before we assume the endpoint is unresponsive
-        self._current_timeout = time() + 10 * 60
+        self._current_timeout = time() + self.timeout_seconds
 
     def _shutdown(self):
         if self.proc:
