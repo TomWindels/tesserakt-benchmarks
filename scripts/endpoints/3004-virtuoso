@@ -48,6 +48,12 @@ EOF
 echo "Waiting 10s for the server to start..."
 sleep 10
 
+# Configuring the SPARQL user to issue SPARQL Update requests
+${ENDPOINT_INSTALL_FOLDER}/bin/isql 1111 dba dba exec="DB.DBA.USER_GRANT_ROLE ('SPARQL', 'SPARQL_UPDATE', 1);"
+# Not sure if necessary, got it from this issue:
+# https://github.com/openlink/virtuoso-opensource/issues/1094
+${ENDPOINT_INSTALL_FOLDER}/bin/isql 1111 dba dba exec="DB.DBA.RDF_DEFAULT_USER_PERMS_SET ('nobody', 7);"
+
 # Uploading the initial data, if any
 if [[ "${ENDPOINT_DATA}" != "" ]]; then
 
@@ -60,7 +66,7 @@ EOF
 fi
 
 # We can now await the endpoint and finish upon exiting
-on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql?default-graph-uri=urn:graph:test"
+on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql?default-graph-uri=urn:graph:test" "http://localhost:${ENDPOINT_PORT}/sparql?default-graph-uri=urn:graph:test"
 
 # We launched it, so we stop it too
 kill -SIGKILL $!
