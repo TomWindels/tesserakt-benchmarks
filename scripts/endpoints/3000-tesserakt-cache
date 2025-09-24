@@ -15,8 +15,8 @@ ENDPOINT_PORT=3000
 
 source common.sh
 
-# In the default config, caching is enabled; here, we disable it for this script
-FLAGS="--port ${ENDPOINT_PORT} --disable-cache"
+# In the default config, caching is enabled; we don't change it for this script
+FLAGS="--port ${ENDPOINT_PORT}"
 
 if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	FLAGS="--from-file ${ENDPOINT_DATA} $FLAGS"

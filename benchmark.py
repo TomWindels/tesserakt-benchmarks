@@ -192,29 +192,14 @@ def eval_memory(range: tuple[int, int], queries: list[str]):
                 mem_file.flush()
 
 def endpoint_eval_replay(endpoint_name: str, benchmarks: list[str], iterations: int = 1):
-    def exec_eval(name: str, endpoint_info: EndpointInfo):
+    def exec_eval(endpoint_info: EndpointInfo):
         assert endpoint_info.update_url is not None, f"ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint (data {endpoint_info})"
-        evaluator = ReplayEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name=name, iterations=iterations)
+        evaluator = ReplayEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name='default', iterations=iterations)
         print(f"Running benchmark against {endpoint_info.query_url}...")
         evaluator.evaluate(replay_files=benchmarks)
 
-    def exec_eval_no_cache(endpoint_info: EndpointInfo):
-        # Disabling any caching mechanism for the no-cache run
-        exec_eval('no-cache', endpoint_info)
-
-    def exec_eval_with_cache(endpoint_info: EndpointInfo):
-        try:
-            # Enabling the caching mechanism for the cache run
-            os.environ['ENABLE_QUERY_CACHE'] = '1'
-            exec_eval('cache', endpoint_info)
-        finally:
-            # Cleaning up the environment variable to avoid affecting other runs
-            os.environ['ENABLE_QUERY_CACHE'] = '0'
-
-    # Running the evaluation twice, once with and once without caching
     try:
-        endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval_no_cache)
-        endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval_with_cache)
+        endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval)
     except Exception as e:
         print(f"Unexpected error during replay evaluation: {str(e)}")
         print(traceback.format_exc())
@@ -287,7 +272,6 @@ def bin_search_memory(endpoint_name:str, dataset_path:str, range: tuple[int], qu
 if __name__ == "__main__":
     # Cleaning up the environment first
     os.environ['JAVA_FLAGS'] = GENERAL_JVM_ARGS
-    os.environ['ENABLE_QUERY_CACHE'] = '0'
 
     if args.replay:
         # The input is assumed to be of the replay format
