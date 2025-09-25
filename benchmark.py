@@ -287,13 +287,18 @@ def eval_growing(iterations: int, queries: list[str]):
 
             def exec_eval(endpoint_info: EndpointInfo, endpoint_name: str, query_index: int, iter_index: int):
                 print(f"Running Growing benchmark against {endpoint_info.query_url}...")
-                output_loc = os.path.join(args.output, os.path.basename(endpoint_name), f"query-{query_index}", f"run-{iter_index}")
-                # os.makedirs(output_loc, exist_ok=True)
+                output_loc = os.path.join(
+                    args.output,
+                    os.path.basename(dataset),
+                    os.path.basename(ratio),
+                    os.path.basename(endpoint_name),
+                    f"query-{query_index}"
+                )
                 evaluator = GrowingEvaluator(
                     endpoint_info=endpoint_info,
                     script=args.script,
                     output_loc=output_loc,
-                    output_name=os.path.basename(dataset) + "-" + os.path.basename(ratio),
+                    output_name=f"run-{iter_index}",
                 )
                 evaluator.evaluate(
                     update_files=update_files,
