@@ -19,58 +19,132 @@ GENERAL_JVM_ARGS="-XX:+UseStringDeduplication"
 # Defining the argument parser
 parser = argparse.ArgumentParser(description="Benchmark orchestrator, managing SPARQL endpoints, changing their configuration, and running benchmarks against them.")
 
-# Adding an argument to specify the endpoint script directory
-parser.add_argument('-e', '--endpoints', type=str, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "scripts/endpoints")), help='Directory containing the endpoint scripts to run.')
+# Adding subparsers for the various modes
+modes_parser = parser.add_subparsers(title='modes', description='Available modes of operation', dest='mode')
 
-# Adding an argument to specify the filter for the endpoints
-parser.add_argument('-f', '--filter', type=str, default=None, help='Filter for the endpoints to run. This is a regex that matches the endpoint script names. If not provided, all endpoints are run.')
+regular_args = modes_parser.add_parser('regular', help='Regular evaluation, utilising queries and regular datasets to evaluate performance.')
+replay_args = modes_parser.add_parser('replay', help='Replay evaluation, utilising the replay bench format.')
+bsbm_args = modes_parser.add_parser('bsbm', help='BSBM evaluation, using the BSBM runner and endpoint configuration.')
+growing_args = modes_parser.add_parser('growing', help='Growing evaluation, where the various RDF datasets are added on top of each other.')
 
-# Adding an argument to specify the output directory
-parser.add_argument('-o', '--output', type=str, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "output")), help='Directory to store the output of the benchmark.')
+# Bulk adding common arguments to multiple parsers
 
-# Adding an argument to specify the input datasets
-parser.add_argument('-i', '--input', type=str, help='Directory containing the input datasets for the benchmark.')
+def append_query_param(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('-q', '--queries', required=True, type=str, help='Files or directories containing the SPARQL query files for the benchmark.')
 
-# Adding an argument to specify the input tasks/queries
-parser.add_argument('-t', '--tasks', type=str, help='Directory containing the input \'tasks\' for the benchmark. These are interpeted as queries during regular evaluation, or interpreted as use case files when using `--bsbm`. This flag is unused in `--replay` mode.')
+def append_script_param(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('-s', '--script', type=str, default=os.path.realpath(os.path.dirname(__file__)), help='The location of the benchmarking script itself.')
 
-# Adding an argument to specify the benchmark script
-parser.add_argument('-s', '--script', type=str, default=os.path.realpath(os.path.dirname(__file__)), help='The location of the benchmarking script itself.')
+def append_input_param(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('-i', '--input', required=True, type=str, help='Directory containing the input datasets for the benchmark.')
 
-# Adding an argument to specify the memory range, in MB
-parser.add_argument('--memory-range', type=str, default=None, help='The memory ranges that should be evaluated. Binary search will be used to find the lower-bound limit. The range format is purely numeric, formatted as `lower,upper`, and is interpreted in MB. If none are provided, the value set in `config.sh` is kept, and no binary search is executed.')
+def append_output_param(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('-o', '--output', required=True, type=str, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "output")), help='Directory to store the output of the benchmark.')
 
-# Adding an argument to specify whether to fail fast
-parser.add_argument('--fail-fast', action='store_true', help='If set, the script will stop running endpoints as soon as one fails. Otherwise, it will continue running all endpoints regardless of failures.')
+def append_iterations_param(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('--runs', type=int, default=1, help='Number of times to run evaluations. Default is 1.')
 
-# Adding an argument to specify replay mode
-parser.add_argument('--replay', action='store_true', help='If set, the script assumes replay benchmark files are passed in as input, and any provided queries are ignored.')
+def append_endpoint_param(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('-e', '--endpoints', type=str, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "scripts/endpoints")), help='Directory containing the endpoint scripts to run.')
 
-# Adding an argument to specify bsbm mode
-parser.add_argument('--bsbm', action='store_true', help='If set, the script uses the BSBM runner tool, and any provided queries are ignored.')
+def append_filter_param(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('-f', '--filter', type=str, default=None, help='Filter for the endpoints to run. This is a regex that matches the endpoint script names. If not provided, all endpoints are run.')
 
-# Making the number of runs configurable
-parser.add_argument('--runs', type=int, default=1, help='Number of times to run each query against each endpoint. Default is 1.')
+def append_failfast_param(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('--fail-fast', action='store_true', help='If set, the script will stop running endpoints as soon as one fails. Otherwise, it will continue running all endpoints regardless of failures.')
+
+append_query_param(
+    regular_args,
+    growing_args,
+)
+
+append_script_param(
+    regular_args,
+    replay_args,
+    bsbm_args,
+    growing_args,
+)
+
+append_input_param(
+    regular_args,
+    replay_args,
+    bsbm_args,
+    growing_args,
+)
+
+append_output_param(
+    regular_args,
+    replay_args,
+    bsbm_args,
+    growing_args,
+)
+
+append_iterations_param(
+    regular_args,
+    replay_args,
+    growing_args,
+)
+
+append_failfast_param(
+    regular_args,
+    replay_args,
+    bsbm_args,
+    growing_args,
+)
+
+append_endpoint_param(
+    regular_args,
+    replay_args,
+    bsbm_args,
+    growing_args,
+)
+
+append_filter_param(
+    regular_args,
+    replay_args,
+    bsbm_args,
+    growing_args,
+)
+
+# Unique arguments
+## Adding an argument to specify the memory range, in MB
+regular_args.add_argument('--memory-range', type=str, default=None, help='The memory ranges that should be evaluated. Binary search will be used to find the lower-bound limit. The range format is purely numeric, formatted as `lower,upper`, and is interpreted in MB. If none are provided, the value set in `config.sh` is kept, and no binary search is executed.')
+## Specifying the UCF file for BSBM mode
+bsbm_args.add_argument('-u', '--ucf', type=str, required=True, help='The Use Case File (UCF) to use for the BSBM benchmark.')
 
 # Getting the arguments
 args = parser.parse_args()
 
-if args.bsbm and args.replay:
-    print("Error: The --bsbm and --replay flags are mutually exclusive.")
-    sys.exit(1)
+# Converting the mode into a boolean for easier checks
+args.regular = args.mode == 'regular'
+args.replay = args.mode == 'replay'
+args.bsbm = args.mode == 'bsbm'
+args.growing = args.mode == 'growing'
 
-# Normalizing the paths
+# Normalizing the paths based on the mode
 args.endpoints = os.path.realpath(args.endpoints)
 args.output = os.path.realpath(args.output)
 args.input = os.path.realpath(args.input) if args.input else None
-args.queries = os.path.realpath(args.tasks) if args.tasks and not args.bsbm and not args.replay else None
-args.ucf = os.path.realpath(args.tasks) if args.tasks and args.bsbm and not args.replay else None
 args.script = os.path.realpath(args.script)
-if not args.bsbm:
-    args.script = os.path.realpath(os.path.join(args.script, "sparql-bench"))
-else:
+if args.regular or args.growing:
+    args.queries = os.path.realpath(args.queries) if args.queries else None
+if args.bsbm:
+    args.ucf = os.path.realpath(args.ucf) if args.ucf else None
     args.script = os.path.realpath(os.path.join(args.script, "bin", "bsbm-tools", "testdriver"))
-if args.memory_range:
+else:
+    args.script = os.path.realpath(os.path.join(args.script, "sparql-bench"))
+
+
+# Configuring regular evaluation based on memory range presence
+if args.regular and args.memory_range:
     if args.runs != 1:
         print("Warning: When using memory range evaluation, the number of runs is forced to 1 to avoid excessive runtimes.")
     args.memory_range = args.memory_range.split(',')
@@ -81,13 +155,8 @@ if args.memory_range:
     if args.memory_range[0] >= args.memory_range[1]:
         print("Error: The lower bound of the memory range must be less than the upper bound.")
         sys.exit(1)
-if args.replay and args.queries:
-    print("Warning: When using replay mode, any provided queries are ignored.")
-if not args.replay and not args.bsbm and not args.queries:
-    print("Error: Either replay mode must be used in conjunction with replay benchmark files, or a query directory must be provided.")
-    sys.exit(1)
 
-# Validating the arguments
+# Validating the remaining 'always present' arguments
 if os.path.exists(args.output) and len(os.listdir(args.output)) > 0:
     print(f"Error: The specified output path '{args.output}' exists and is not empty!")
     sys.exit(1)
@@ -99,9 +168,6 @@ if not os.path.exists(args.endpoints) or not os.path.isdir(args.endpoints):
 if not os.path.exists(args.script) or not os.path.isfile(args.script) or not os.access(args.script, os.X_OK):
     print(f"Error: The specified script '{args.script}' does not exist, is not a file, or is not executable.")
     sys.exit(1)
-
-# Ensuring we're working with an absolute path for the script
-args.script = os.path.realpath(args.script)
 
 def listdir_abs(path):
     """
