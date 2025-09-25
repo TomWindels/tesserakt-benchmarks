@@ -10,7 +10,7 @@ from typing import Callable
 
 # Custom helpers
 from endpoint import EndpointInstance
-from evaluator import BsbmEvaluator, RegularEvaluator, ReplayEvaluator
+from evaluator import BsbmEvaluator, GrowingEvaluator, RegularEvaluator, ReplayEvaluator
 from utils import EndpointInfo
 
 # TODO: make this a command argument
@@ -173,10 +173,11 @@ def listdir_abs(path):
     """
     Returns a list of absolute paths for all files in the given directory.
     """
+    path = os.path.realpath(path)
     if os.path.isdir(path):
         return [os.path.join(path, file) for file in os.listdir(path)]
     elif os.path.isfile(path):
-        return [os.path.realpath(path)]
+        return [path]
     else:
         raise FileNotFoundError(f"The specified path '{path}' is not a directory or does not exist.")
 
@@ -256,6 +257,63 @@ def eval_memory(range: tuple[int, int], queries: list[str]):
                 result = bin_search_memory(endpoint_name=endpoint_name, dataset_path=dataset_path, range=range, queries=queries)
                 mem_file.write(f"{os.path.basename(endpoint_name)},{os.path.basename(dataset_path)},{result}\n")
                 mem_file.flush()
+
+def eval_growing(iterations: int, queries: list[str]):
+    datasets = [dir for dir in listdir_abs(args.input) if os.path.isdir(dir)]
+    for dataset in datasets:
+        # The datasets have a specific folder hierarchy: *name*/ratio-XYZ/{initial.nt,update-XYZ/{delta.nt,total.nt}}
+        ratios = [dir for dir in listdir_abs(dataset) if os.path.isdir(dir) and re.match(r'.*ratio-[0-9]+$', dir)]
+        print(f"Using dataset {dataset} ({len(ratios)} ratios)")
+        for ratio in ratios:
+            print(f"  Using ratio: {os.path.basename(ratio)}")
+            initial_file = os.path.join(ratio, "initial.nt")
+            if not os.path.exists(initial_file) or not os.path.isfile(initial_file):
+                print(f"Error: The initial dataset file '{initial_file}' does not exist or is not a file.")
+                if args.fail_fast:
+                    print("Stopping early due to error.")
+                    exit(1)
+                continue
+            update_dirs = [dir for dir in listdir_abs(ratio) if os.path.isdir(dir)]
+            update_dirs.sort(key=lambda f: int(re.search(r'update-([0-9]+)$', f).group(1)))
+            update_files = [os.path.join(dir, "delta.nt") for dir in update_dirs]
+            if any(not os.path.exists(file) or not os.path.isfile(file) for file in update_files):
+                print(f"Error: One or more update dataset files in '{os.path.join(ratio, 'update-nt')}' do not exist or are not files.")
+                if args.fail_fast:
+                    print("Stopping early due to error.")
+                    exit(1)
+                continue
+            if not update_files:
+                print(f"Warning: No update files found in '{os.path.join(ratio, 'update-nt')}'. Only the initial dataset will be used.")
+
+            def exec_eval(endpoint_info: EndpointInfo, endpoint_name: str, query_index: int, iter_index: int):
+                print(f"Running Growing benchmark against {endpoint_info.query_url}...")
+                output_loc = os.path.join(args.output, os.path.basename(endpoint_name), f"query-{query_index}", f"run-{iter_index}")
+                # os.makedirs(output_loc, exist_ok=True)
+                evaluator = GrowingEvaluator(
+                    endpoint_info=endpoint_info,
+                    script=args.script,
+                    output_loc=output_loc,
+                    output_name=os.path.basename(dataset) + "-" + os.path.basename(ratio),
+                )
+                evaluator.evaluate(
+                    update_files=update_files,
+                    query=queries[query_index],
+                )
+
+            for endpoint_name in endpoints:
+                print(f"Running {endpoint_name}... (x {iterations})")
+                for i in range(iterations):
+                    for query_index in range(len(queries)):
+                        endpoint_eval(
+                            endpoint_name=endpoint_name,
+                            dataset_path=initial_file,
+                            on_endpoint_ready=lambda endpoint_info: exec_eval(
+                                endpoint_info=endpoint_info,
+                                endpoint_name=endpoint_name,
+                                query_index=query_index,
+                                iter_index=i,
+                                ),
+                        )
 
 def endpoint_eval_replay(endpoint_name: str, benchmarks: list[str], iterations: int = 1):
     def exec_eval(endpoint_info: EndpointInfo):
@@ -343,6 +401,11 @@ if __name__ == "__main__":
         # The input is assumed to be of the replay format
         benchmarks = read_file_or_folder(args.input)
         eval_replay(iterations=args.runs, benchmarks=benchmarks)
+    elif args.growing:
+        # The queries are assumed to be a set of regular queries
+        queries = prepare_queries_or_bail(args.queries)
+        print(f"Loaded {len(queries)} queries from '{args.queries}'")
+        eval_growing(iterations=args.runs, queries=queries)
     elif args.bsbm:
         # The queries are assumed to be a single UCF file
         ucf_files = read_file_or_folder(args.ucf)

@@ -135,6 +135,18 @@ class ReplayEvaluator(ScriptEvaluator):
             "--output", os.path.join(self.output_loc, self.output_name),
         ] + replay_args)
 
+class GrowingEvaluator(ScriptEvaluator):
+    def evaluate(self, update_files: list[str], query: str):
+        assert self.endpoint.update_url is not None, "GrowingEvaluator requires the SPARQL Update Protocol to be supported by the endpoint"
+        input_args = list(itertools.chain(*[("--input", file) for file in update_files]))
+        ScriptEvaluator.evaluate(self, [
+            "growing",
+            "--url", self.endpoint.formatted(),
+            "--runs", f"{self.runs}",
+            "--output", os.path.join(self.output_loc, self.output_name),
+            "--query", query,
+        ] + input_args)
+
 class BsbmEvaluator(Evaluator):
     def evaluate(self, dataset_path: str, ucf_file: str):
         base = os.path.join(self.output_loc, os.path.basename(dataset_path).replace('.', '-'), self.endpoint.query_url.split('localhost:')[1].replace('/', '_'))
