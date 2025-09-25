@@ -183,7 +183,7 @@ def listdir_abs(path):
 # Detecting all relevant scripts
 endpoints = [
     file for file in listdir_abs(args.endpoints)
-    if re.match(r'^.*/[0-9]{4}-[a-zA-Z\-_]*$', file) and os.path.isfile(file) and os.access(file, os.X_OK) and (args.filter is None or re.search(args.filter, os.path.basename(file)))
+    if re.match(r'^.*/[0-9]{4}-[a-zA-Z\-_]*$', file) and os.path.isfile(file) and os.access(file, os.X_OK) and (args.filter is None or re.search(args.filter, '-'.join(os.path.basename(file).split('-')[1:])))
 ]
 
 print(f"Found {len(endpoints)} endpoint scripts in '{args.endpoints}'")
