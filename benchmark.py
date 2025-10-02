@@ -1,6 +1,7 @@
 #! /bin/python
 
 # Builtin modules
+import glob
 import os
 import sys
 import argparse
@@ -10,7 +11,7 @@ from typing import Callable
 
 # Custom helpers
 from endpoint import EndpointInstance
-from evaluator import BsbmEvaluator, GrowingEvaluator, RegularEvaluator, ReplayEvaluator
+from evaluator import BsbmEvaluator, UpdateEvaluator, RegularEvaluator, ReplayEvaluator
 from utils import EndpointInfo
 
 # TODO: make this a command argument
@@ -25,9 +26,14 @@ modes_parser = parser.add_subparsers(title='modes', description='Available modes
 regular_args = modes_parser.add_parser('regular', help='Regular evaluation, utilising queries and regular datasets to evaluate performance.')
 replay_args = modes_parser.add_parser('replay', help='Replay evaluation, utilising the replay bench format.')
 bsbm_args = modes_parser.add_parser('bsbm', help='BSBM evaluation, using the BSBM runner and endpoint configuration.')
-growing_args = modes_parser.add_parser('growing', help='Growing evaluation, where the various RDF datasets are added on top of each other.')
+update_args = modes_parser.add_parser('update', help='Update evaluation, where an initial RDF dataset is updated with a specific update file, surrounded by a query evaluation.')
 
 # Bulk adding common arguments to multiple parsers
+
+def append_warmup_params(*parsers: argparse.ArgumentParser):
+    for parser in parsers:
+        parser.add_argument('--warmup-queries', type=str, help='Files or directories containing the SPARQL query files for the benchmark warmup.')
+        parser.add_argument('--warmup-runs', type=int, default=1, help='Number of times the entire warmup query suite is evaluated during warmup.')
 
 def append_query_param(*parsers: argparse.ArgumentParser):
     for parser in parsers:
@@ -63,55 +69,62 @@ def append_failfast_param(*parsers: argparse.ArgumentParser):
 
 append_query_param(
     regular_args,
-    growing_args,
+    update_args,
 )
 
 append_script_param(
     regular_args,
     replay_args,
     bsbm_args,
-    growing_args,
+    update_args,
 )
 
 append_input_param(
     regular_args,
     replay_args,
     bsbm_args,
-    growing_args,
+    update_args,
+)
+
+append_warmup_params(
+    regular_args,
+    replay_args,
+    bsbm_args,
+    update_args,
 )
 
 append_output_param(
     regular_args,
     replay_args,
     bsbm_args,
-    growing_args,
+    update_args,
 )
 
 append_iterations_param(
     regular_args,
     replay_args,
-    growing_args,
+    update_args,
 )
 
 append_failfast_param(
     regular_args,
     replay_args,
     bsbm_args,
-    growing_args,
+    update_args,
 )
 
 append_endpoint_param(
     regular_args,
     replay_args,
     bsbm_args,
-    growing_args,
+    update_args,
 )
 
 append_filter_param(
     regular_args,
     replay_args,
     bsbm_args,
-    growing_args,
+    update_args,
 )
 
 # Unique arguments
@@ -127,14 +140,14 @@ args = parser.parse_args()
 args.regular = args.mode == 'regular'
 args.replay = args.mode == 'replay'
 args.bsbm = args.mode == 'bsbm'
-args.growing = args.mode == 'growing'
+args.update = args.mode == 'update'
 
 # Normalizing the paths based on the mode
 args.endpoints = os.path.realpath(args.endpoints)
 args.output = os.path.realpath(args.output)
 args.input = os.path.realpath(args.input) if args.input else None
 args.script = os.path.realpath(args.script)
-if args.regular or args.growing:
+if args.regular or args.update:
     args.queries = os.path.realpath(args.queries) if args.queries else None
 if args.bsbm:
     args.ucf = os.path.realpath(args.ucf) if args.ucf else None
@@ -221,6 +234,8 @@ def prepare_queries_or_bail(queries_path: str) -> list[str]:
 
     return [read_contents(query_file) for query_file in files]
 
+args.warmup_queries = prepare_queries_or_bail(args.warmup_queries) if args.warmup_queries else []
+
 def eval_bsbm(ucf_file: str):
     for dataset_path in listdir_abs(args.input):
         print(f"Using dataset: {dataset_path}")
@@ -258,14 +273,14 @@ def eval_memory(range: tuple[int, int], queries: list[str]):
                 mem_file.write(f"{os.path.basename(endpoint_name)},{os.path.basename(dataset_path)},{result}\n")
                 mem_file.flush()
 
-def eval_growing(iterations: int, queries: list[str]):
+def eval_update(iterations: int, queries: list[str]):
     datasets = [dir for dir in listdir_abs(args.input) if os.path.isdir(dir)]
     for dataset in datasets:
         # The datasets have a specific folder hierarchy: *name*/ratio-XYZ/{initial.nt,update-XYZ/{delta.nt,total.nt}}
         ratios = [dir for dir in listdir_abs(dataset) if os.path.isdir(dir) and re.match(r'.*ratio-[0-9]+$', dir)]
         print(f"Using dataset {dataset} ({len(ratios)} ratios)")
         for ratio in ratios:
-            print(f"  Using ratio: {os.path.basename(ratio)}")
+            print(f"Using ratio: {os.path.basename(ratio)}")
             initial_file = os.path.join(ratio, "initial.nt")
             if not os.path.exists(initial_file) or not os.path.isfile(initial_file):
                 print(f"Error: The initial dataset file '{initial_file}' does not exist or is not a file.")
@@ -283,67 +298,89 @@ def eval_growing(iterations: int, queries: list[str]):
                     exit(1)
                 continue
             if not update_files:
-                print(f"Warning: No update files found in '{os.path.join(ratio, 'update-nt')}'. Only the initial dataset will be used.")
+                print(f"Warning: No update files found in '{os.path.join(ratio, 'update-nt')}'.")
+                continue
 
-            def exec_eval(endpoint_info: EndpointInfo, endpoint_name: str, query_index: int, iter_index: int):
-                print(f"Running Growing benchmark against {endpoint_info.query_url}...")
-                output_loc = os.path.join(
-                    args.output,
-                    os.path.basename(dataset),
-                    os.path.basename(ratio),
-                    os.path.basename(endpoint_name),
-                    f"query-{query_index}"
-                )
-                evaluator = GrowingEvaluator(
-                    endpoint_info=endpoint_info,
-                    script=args.script,
-                    output_loc=output_loc,
-                    output_name=f"run-{iter_index}",
-                )
-                evaluator.evaluate(
-                    update_files=update_files,
-                    query=queries[query_index],
-                )
+            print(f"Found {len(update_files)} update files.")
+            for update_index, update_file in enumerate(update_files):
+                def exec_eval(endpoint_info: EndpointInfo, endpoint_name: str, query_index: int, iter_index: int):
+                    output_loc = os.path.join(
+                        args.output,
+                        os.path.basename(dataset),
+                        os.path.basename(ratio),
+                        os.path.basename(endpoint_name),
+                        f"query-{query_index}",
+                        f"run-{iter_index}",
+                    )
+                    evaluator = UpdateEvaluator(
+                        endpoint_info=endpoint_info,
+                        script=args.script,
+                        output_loc=output_loc,
+                        output_name=f"update-{update_index}",
+                        warmup_queries=args.warmup_queries,
+                        warmup_runs=args.warmup_runs,
+                    )
+                    evaluator.evaluate(
+                        update_file=update_file,
+                        query=queries[query_index],
+                    )
 
-            for endpoint_name in endpoints:
-                print(f"Running {endpoint_name}... (x {iterations})")
-                for i in range(iterations):
-                    for query_index in range(len(queries)):
-                        endpoint_eval(
-                            endpoint_name=endpoint_name,
-                            dataset_path=initial_file,
-                            on_endpoint_ready=lambda endpoint_info: exec_eval(
-                                endpoint_info=endpoint_info,
+                for endpoint_name in endpoints:
+                    for run in range(iterations):
+                        print(f"Running benchmark against {endpoint_name} (#{run + 1}/{iterations})...")
+                        for query_index in range(len(queries)):
+                            print(f"Evaluating query #{query_index + 1}/{len(queries)}...")
+                            endpoint_eval(
                                 endpoint_name=endpoint_name,
-                                query_index=query_index,
-                                iter_index=i,
-                                ),
-                        )
+                                dataset_path=initial_file,
+                                on_endpoint_ready=lambda endpoint_info: exec_eval(
+                                    endpoint_info=endpoint_info,
+                                    endpoint_name=endpoint_name,
+                                    query_index=query_index,
+                                    iter_index=run,
+                                    ),
+                            )
 
 def endpoint_eval_replay(endpoint_name: str, benchmarks: list[str], iterations: int = 1):
-    def exec_eval(endpoint_info: EndpointInfo):
-        assert endpoint_info.update_url is not None, f"ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint (data {endpoint_info})"
-        evaluator = ReplayEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name='default', iterations=iterations)
-        print(f"Running benchmark against {endpoint_info.query_url}...")
-        evaluator.evaluate(replay_files=benchmarks)
+    for run in range(iterations):
+        def exec_eval(endpoint_info: EndpointInfo):
+            assert endpoint_info.update_url is not None, f"ReplayEvaluator requires the SPARQL Update Protocol to be supported by the endpoint (data {endpoint_info})"
+            evaluator = ReplayEvaluator(
+                endpoint_info=endpoint_info,
+                script=args.script,
+                output_loc=os.path.join(args.output, f"run-{run}"),
+                output_name='default',
+                warmup_queries=args.warmup_queries,
+                warmup_runs=args.warmup_runs,
+            )
+            print(f"Running benchmark against {endpoint_info.query_url} (#{run + 1}/{iterations})...")
+            evaluator.evaluate(replay_files=benchmarks)
 
-    try:
-        endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval)
-    except Exception as e:
-        print(f"Unexpected error during replay evaluation: {str(e)}")
-        print(traceback.format_exc())
-        print("Assuming the endpoint failed, skipping any further evaluations.")
-        if args.fail_fast:
-            print(f"Stopping early due to error: {str(e)}")
-            exit(1)
+        if not endpoint_eval(endpoint_name=endpoint_name, dataset_path=None, on_endpoint_ready=exec_eval):
+            print(f"Error: Evaluation for endpoint '{endpoint_name}' failed.")
+            if args.fail_fast:
+                print("Stopping early due to error.")
+                exit(1)
+            # simply bailing the current run
+            else: return
 
 def endpoint_eval_regular(endpoint_name: str, dataset_path: str, queries: list[str], output_name: str = "default", iterations: int = 1) -> bool:
-    def exec_eval(endpoint_info: EndpointInfo):
-        evaluator = RegularEvaluator(endpoint_info, script=args.script, output_loc=args.output, output_name=output_name, iterations=iterations)
-        print(f"Running benchmark against {endpoint_info.query_url}...")
-        evaluator.evaluate(dataset_path=dataset_path, queries=queries)
+    for run in range(iterations):
+        def exec_eval(endpoint_info: EndpointInfo):
+            evaluator = RegularEvaluator(
+                endpoint_info=endpoint_info,
+                script=args.script,
+                output_loc=os.path.join(args.output, f"run-{run}"),
+                output_name=output_name,
+                warmup_queries=args.warmup_queries,
+                warmup_runs=args.warmup_runs,
+            )
+            print(f"Running benchmark against {endpoint_info.query_url} (#{run + 1}/{iterations})...")
+            evaluator.evaluate(dataset_path=dataset_path, queries=queries)
 
-    return endpoint_eval(endpoint_name=endpoint_name, dataset_path=dataset_path, on_endpoint_ready=exec_eval)
+        if not endpoint_eval(endpoint_name=endpoint_name, dataset_path=dataset_path, on_endpoint_ready=exec_eval):
+            return False
+    return True
 
 def endpoint_eval(endpoint_name: str, dataset_path: str | None, on_endpoint_ready: Callable[[EndpointInfo], None]) -> bool:
     """
@@ -406,11 +443,11 @@ if __name__ == "__main__":
         # The input is assumed to be of the replay format
         benchmarks = read_file_or_folder(args.input)
         eval_replay(iterations=args.runs, benchmarks=benchmarks)
-    elif args.growing:
+    elif args.update:
         # The queries are assumed to be a set of regular queries
         queries = prepare_queries_or_bail(args.queries)
         print(f"Loaded {len(queries)} queries from '{args.queries}'")
-        eval_growing(iterations=args.runs, queries=queries)
+        eval_update(iterations=args.runs, queries=queries)
     elif args.bsbm:
         # The queries are assumed to be a single UCF file
         ucf_files = read_file_or_folder(args.ucf)

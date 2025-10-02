@@ -15,8 +15,8 @@ ENDPOINT_PORT=3000
 
 source common.sh
 
-# In the default config, caching is enabled; we don't change it for this script
-FLAGS="--port ${ENDPOINT_PORT}"
+# Most test cases require only one query to be cached, with the evaluation working on that same query; so we set the size to 1
+FLAGS="--port ${ENDPOINT_PORT} --cache-size 1"
 
 if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	FLAGS="--from-file ${ENDPOINT_DATA} $FLAGS"

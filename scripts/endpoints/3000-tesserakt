@@ -15,8 +15,8 @@ ENDPOINT_PORT=3000
 
 source common.sh
 
-# In the default config, caching is enabled; here, we disable it for this script
-FLAGS="--port ${ENDPOINT_PORT} --disable-cache"
+# In the default config, the cache size is already set to 0; we explicitly set it here for clarity
+FLAGS="--port ${ENDPOINT_PORT} --cache-size 0"
 
 if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	FLAGS="--from-file ${ENDPOINT_DATA} $FLAGS"

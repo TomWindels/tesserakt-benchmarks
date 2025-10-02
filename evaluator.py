@@ -12,7 +12,7 @@ class Evaluator:
     A class wrapping the sparql-bench evaluator script, allowing a fixed command to be issued.
     Throws a TimeoutError if the evaluator is idling based on stdout, indicating an unresponsive endpoint.
     """
-    def __init__(self, endpoint_info: EndpointInfo, script: str, output_loc: str, output_name: str = "default", iterations: int = 1, timeout_seconds: int = 600):
+    def __init__(self, endpoint_info: EndpointInfo, script: str, output_loc: str, output_name: str = "default", warmup_queries: list[str] = [], warmup_runs: int = 0, timeout_seconds: int = 600):
         self.endpoint = endpoint_info
         self.script = script
         self.output_loc = output_loc
@@ -21,9 +21,15 @@ class Evaluator:
         self.stderr_thread = None
         self._current_timeout = None
         self.output_name = output_name
-        self.runs = iterations
         self.errors = []
         self.timeout_seconds = timeout_seconds
+        self.warmup_queries = warmup_queries
+        self.warmup_runs = warmup_runs
+    
+    def get_warmup_args(self) -> list[str]:
+        if self.warmup_runs > 0 and len(self.warmup_queries) > 0:
+            return list(itertools.chain(*[("--warmup-query", query) for query in self.warmup_queries] + [("--warmup-runs", str(self.warmup_runs))]))
+        return []
 
     def evaluate(self, cmd: list[str], cwd: str | None = None):
         self.proc = subprocess.Popen(
@@ -61,8 +67,8 @@ class Evaluator:
     def _shutdown(self):
         if self.proc:
             # Sending a SIGKILL to the entire process group to ensure everything is killed
-            print(f"Shutting down evaluator ({self.proc.pid})")
-            subprocess.Popen(['kill', '-SIGINT', f'-{self.proc.pid}']).wait()
+            # print(f"Shutting down evaluator ({self.proc.pid})")
+            # subprocess.Popen(['kill', '-SIGINT', f'-{self.proc.pid}']).wait()
             self.proc.wait()
             self.proc = None
             self.stdout_thread.join()
@@ -120,9 +126,8 @@ class RegularEvaluator(ScriptEvaluator):
         ScriptEvaluator.evaluate(self, [
             "query",
             "--url", self.endpoint.formatted(),
-            "--runs", f"{self.runs}",
             "--output", os.path.join(self.output_loc, os.path.basename(dataset_path), self.output_name),
-        ] + query_args)
+        ] + query_args + self.get_warmup_args())
 
 class ReplayEvaluator(ScriptEvaluator):
     def evaluate(self, replay_files: list[str]):
@@ -131,21 +136,19 @@ class ReplayEvaluator(ScriptEvaluator):
         ScriptEvaluator.evaluate(self, [
             "replay",
             "--url", self.endpoint.formatted(),
-            "--runs", f"{self.runs}",
             "--output", os.path.join(self.output_loc, self.output_name),
-        ] + replay_args)
+        ] + replay_args + self.get_warmup_args())
 
-class GrowingEvaluator(ScriptEvaluator):
-    def evaluate(self, update_files: list[str], query: str):
+class UpdateEvaluator(ScriptEvaluator):
+    def evaluate(self, update_file: str, query: str):
         assert self.endpoint.update_url is not None, "GrowingEvaluator requires the SPARQL Update Protocol to be supported by the endpoint"
-        input_args = list(itertools.chain(*[("--input", file) for file in update_files]))
         ScriptEvaluator.evaluate(self, [
-            "growing",
+            "update",
             "--url", self.endpoint.formatted(),
-            "--runs", f"{self.runs}",
             "--output", os.path.join(self.output_loc, self.output_name),
             "--query", query,
-        ] + input_args)
+            "--update-file", update_file,
+        ] + self.get_warmup_args())
 
 class BsbmEvaluator(Evaluator):
     def evaluate(self, dataset_path: str, ucf_file: str):
