@@ -10,7 +10,7 @@ source config.sh
 # Becomes available using the following URL:
 # localhost:3000/sparql
 
-ENDPOINT_JAR="${BENCHMARK_ROOT}/bin/tesserakt-endpoint.jar"
+ENDPOINT_BIN="${BENCHMARK_ROOT}/bin/tesserakt-endpoint"
 ENDPOINT_PORT=3000
 
 source common.sh
@@ -22,7 +22,7 @@ if [[ "${ENDPOINT_DATA}" != "" ]]; then
 	FLAGS="--from-file ${ENDPOINT_DATA} $FLAGS"
 fi
 
-"${JAVA_BIN}" ${JAVA_FLAGS} -jar "${ENDPOINT_JAR}" ${FLAGS} &
+"${ENDPOINT_BIN}" ${FLAGS} &
 
 # the query URL == the update URL
 on_endpoint_ready "http://localhost:${ENDPOINT_PORT}/sparql" "http://localhost:${ENDPOINT_PORT}/sparql"
