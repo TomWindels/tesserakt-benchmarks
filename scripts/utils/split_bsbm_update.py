@@ -43,18 +43,13 @@ ratios = INITIAL_DATASET_SIZE_RATIO
 random.seed(args.seed)
 
 def generate_deltas(lines: list[str]) -> list[list[str]]:
-    current_delta_line_count = 1
-    start = 0
+    # ~ 1/2 of a typical chunk size
+    current_delta_line_count = 64
     deltas = []
-    while start < len(lines):
-        for _ in range(10):
-            current_delta = lines[start:start + current_delta_line_count]
-            start += current_delta_line_count
-            if current_delta:
-                deltas.append(current_delta)
-            else:
-                break
-        current_delta_line_count *= 2
+    while current_delta_line_count < len(lines):
+        current_delta = lines[0:current_delta_line_count]
+        deltas.append(current_delta)
+        current_delta_line_count += 64
         if len(deltas) >= 250:
             # We cannot generate too many deltas, so we stop here
             break
@@ -71,27 +66,27 @@ for ratio in ratios:
     # Creating the initial dataset, which is a random selection of lines from the various chunks
     total_lines = sum(len(chunk) for chunk in remaining_chunks)
     target_lines = int(total_lines * ratio)
-    current_dataset = []
+    initial_dataset = []
 
     # First adding a set of chunks with the guarantee of being completely present while allowed by the target size
     while remaining_chunks:
         chunk = random.choice(remaining_chunks)
-        if len(current_dataset) + len(chunk) > target_lines:
+        if len(initial_dataset) + len(chunk) > target_lines:
             break
-        current_dataset.extend(chunk)
+        initial_dataset.extend(chunk)
         remaining_chunks.remove(chunk)
 
     # Then adding random lines from the remaining chunks until we reach the target size
-    while len(current_dataset) < target_lines and remaining_chunks:
+    while len(initial_dataset) < target_lines and remaining_chunks:
         chunk = random.choice(remaining_chunks)
         line = random.choice(chunk)
         chunk.remove(line)
-        current_dataset.append(line)
+        initial_dataset.append(line)
 
     # This dataset can now be written as the initial state
     with open(os.path.join(filepath, 'initial.nt'), 'w') as out:
         # Writing out the total dataset
-        for line in current_dataset:
+        for line in initial_dataset:
             out.write(line + '\n')
 
     # The various deltas can now also be generated
@@ -110,6 +105,7 @@ for ratio in ratios:
             continue
         with open(os.path.join(subpath, 'total.nt'), 'w') as out:
             # Writing out the total dataset
-            current_dataset.extend(delta)
-            for line in current_dataset:
+            for line in initial_dataset:
+                out.write(line + '\n')
+            for line in delta:
                 out.write(line + '\n')
