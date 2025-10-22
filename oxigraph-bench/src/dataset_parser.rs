@@ -10,7 +10,7 @@ pub struct DatasetParser {
 }
 
 impl DatasetParser {
-    pub fn new(path: PathBuf) -> Result<Self, std::io::Error> {
+    pub fn new(path: &PathBuf) -> Result<Self, std::io::Error> {
         let file = File::open(path)?;
         let src = RdfParser::from_format(RdfFormat::TriG).for_reader(file);
         let result = Self { step_size: 512, src, };

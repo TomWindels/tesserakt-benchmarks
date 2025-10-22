@@ -58,12 +58,16 @@ fn main() {
     }
     let query = parse_query(&args.query);
 
-    let store = Store::new().expect("Failed to create a new in-memory store");
     let mut result_file = ResultFile::new(derive_output_filename(&args.query)).expect("Failed to create a result file");
-    let mut dataset_parser = DatasetParser::new(args.filepath).expect("Failed to create a dataset parser");
-    while dataset_parser.insert_into(&store) > 0usize {
-        let result = Evaluation::from(query.clone(), &store).expect("Failed to evaluate solution");
-        println!("Got result {:?}", result);
-        result_file.append(result).expect("Failed to append result");
+    for _ in 0..10 {
+        let store = Store::new().expect("Failed to create a new in-memory store");
+        let mut dataset_parser = DatasetParser::new(&args.filepath).expect("Failed to create a dataset parser");
+        let mut index = 0u32;
+        while dataset_parser.insert_into(&store) > 0usize {
+            let result = Evaluation::from(index, query.clone(), &store).expect("Failed to evaluate solution");
+            println!("Got result {:?}", result);
+            result_file.append(result).expect("Failed to append result");
+            index += 1;
+        }
     }
 }

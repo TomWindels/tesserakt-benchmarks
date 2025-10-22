@@ -26,14 +26,15 @@ impl ResultFile {
             ));
         }
         let mut file = File::create(name)?;
-        file.write("duration(ms),total,checksum".as_bytes())?;
+        file.write("index,duration(ms),total,checksum".as_bytes())?;
         Ok(file)
     }
 
     fn write_results(writer: &mut BufWriter<File>, results: Evaluation) -> Result<(), std::io::Error> {
         writer
             .write_fmt(format_args!(
-                "\n{},{},{}",
+                "\n{},{},{},{}",
+                results.index,
                 results.duration.as_micros() as f32 / 1000f32,
                 results.count,
                 results.checksum

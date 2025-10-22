@@ -5,13 +5,18 @@ use oxigraph::store::Store;
 
 #[derive(Debug)]
 pub struct Evaluation {
+    pub index: u32,
     pub duration: Duration,
     pub checksum: i32,
     pub count: i32,
 }
 
 impl Evaluation {
-    pub fn from(query: PreparedSparqlQuery, store: &Store) -> Result<Evaluation, QueryEvaluationError> {
+    pub fn from(
+        index: u32,
+        query: PreparedSparqlQuery,
+        store: &Store,
+    ) -> Result<Evaluation, QueryEvaluationError> {
         let start = Instant::now();
         let mut count = 0;
         let mut checksum = 0;
@@ -22,6 +27,7 @@ impl Evaluation {
                 count += 1;
             }
             Ok(Evaluation {
+                index,
                 duration: Instant::now() - start,
                 checksum,
                 count,
