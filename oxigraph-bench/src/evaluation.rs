@@ -1,5 +1,5 @@
 use std::time::{Duration, Instant};
-use oxigraph::model::Term;
+use oxigraph::model::{Quad, Term};
 use oxigraph::sparql::{PreparedSparqlQuery, QueryEvaluationError, QueryResults, QuerySolution};
 use oxigraph::store::Store;
 
@@ -20,21 +20,23 @@ impl Evaluation {
         let start = Instant::now();
         let mut count = 0;
         let mut checksum = 0;
-        if let QueryResults::Solutions(solutions) = query.on_store(&store).execute()? {
-            for solution in solutions {
-                let solution = solution?;
-                checksum += Self::get_checksum(solution);
-                count += 1;
-            }
-            Ok(Evaluation {
-                index,
-                duration: Instant::now() - start,
-                checksum,
-                count,
-            })
+        let query_solutions = if let QueryResults::Solutions(solutions) = query.on_store(&store).execute()? {
+            solutions.map(|r| r.unwrap()).collect::<Vec<QuerySolution>>()
         } else {
-            Err(QueryEvaluationError::Cancelled)
+            return Err(QueryEvaluationError::Cancelled)
+        };
+        let duration = start.elapsed();
+        for solution in query_solutions {
+            let solution = solution;
+            checksum += Self::get_checksum(solution);
+            count += 1;
         }
+        Ok(Evaluation {
+            index,
+            duration,
+            checksum,
+            count,
+        })
     }
 
     fn get_checksum_value(term: &Term) -> i32 {
