@@ -1,5 +1,6 @@
 mod result_file;
 mod evaluation;
+mod dataset_parser;
 
 use clap::Parser;
 use oxigraph::io::{RdfFormat, RdfParser};
@@ -11,6 +12,7 @@ use oxigraph::store::Store;
 use std::fs;
 use std::fs::File;
 use std::path::PathBuf;
+use crate::dataset_parser::DatasetParser;
 use crate::evaluation::Evaluation;
 use crate::result_file::ResultFile;
 
@@ -20,7 +22,7 @@ struct Args {
     #[arg(short, long)]
     query: PathBuf,
     #[arg(short, long)]
-    filepaths: Vec<PathBuf>,
+    filepath: PathBuf,
 }
 
 fn bail(reason: String) -> ! {
@@ -45,20 +47,6 @@ fn parse_query(path: &PathBuf) -> PreparedSparqlQuery {
         .expect("Failed to parse query")
 }
 
-fn insert_data(store: &Store, path: &PathBuf) {
-    println!("Reading file {}", path.display());
-    let file = File::open(path).expect("Failed to open file");
-    let original_size = store.len().expect("Failed to read original size");
-    let mut loader = store.bulk_loader();
-    loader
-        .load_from_reader(RdfParser::from_format(RdfFormat::TriG), file)
-        .expect("Failed to add quads!");
-    loader
-        .commit()
-        .expect("Failed to commit the new quads from file!");
-    println!("Added {} quads!", store.len().expect("Failed to read the new store length") - original_size);
-}
-
 fn derive_output_filename(query: &PathBuf) -> String {
     format!("{}_output.csv", query.file_stem().unwrap().to_str().unwrap())
 }
@@ -72,10 +60,10 @@ fn main() {
 
     let store = Store::new().expect("Failed to create a new in-memory store");
     let mut result_file = ResultFile::new(derive_output_filename(&args.query)).expect("Failed to create a result file");
-    args.filepaths.iter().for_each(|filepath| {
-        insert_data(&store, filepath);
+    let mut dataset_parser = DatasetParser::new(args.filepath).expect("Failed to create a dataset parser");
+    while dataset_parser.insert_into(&store) > 0usize {
         let result = Evaluation::from(query.clone(), &store).expect("Failed to evaluate solution");
         println!("Got result {:?}", result);
         result_file.append(result).expect("Failed to append result");
-    })
+    }
 }
