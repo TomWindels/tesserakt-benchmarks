@@ -5,18 +5,6 @@ import writer.OutputWriter
 import writer.inputToOutputDir
 import java.io.File
 
-fun main(args: Array<String>) {
-    val so = File("/home/t0ms4/Repositories/tesserakt-benchmarks/oxigraph-bench/target/release/liboxigraph_bench.so")
-    val replay = File("/home/t0ms4/Downloads/railway-batch-8-inferred_batch_star_4_inject_star_repair_star.ttl")
-    val output = File("output")
-    output.mkdirs()
-    evaluate(
-        lib = so,
-        replay = replay,
-        output = output,
-    )
-}
-
 fun evaluate(
     lib: File,
     replay: File,

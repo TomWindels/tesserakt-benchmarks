@@ -6,7 +6,6 @@ import com.sun.jna.Native
 import com.sun.jna.Platform
 import com.sun.jna.Pointer
 import dev.tesserakt.rdf.types.Quad
-import dev.tesserakt.rdf.types.SnapshotStore
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
