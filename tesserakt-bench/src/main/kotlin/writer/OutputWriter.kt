@@ -7,7 +7,10 @@ class OutputWriter(target: File, type: ResultEntry.Type) : AutoCloseable {
 
     private val stream = FileOutputStream(
         target
-            .also { check(!it.exists()) { "Tried to write to a file that already exists: `${it.absolutePath}`"} }
+            .also {
+                check(!it.exists()) { "Tried to write to a file that already exists: `${it.absolutePath}`"}
+                it.parentFile.mkdirs()
+            }
     ).bufferedWriter()
 
     init {
