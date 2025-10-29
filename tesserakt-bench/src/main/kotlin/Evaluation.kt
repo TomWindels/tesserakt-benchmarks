@@ -1,5 +1,5 @@
 import bench.replay.ReplayBench
-import evaluator.Engine
+import evaluator.ExternalEngine
 import writer.IndexedResultEntry
 import writer.OutputWriter
 import writer.inputToOutputDir
@@ -11,7 +11,6 @@ fun evaluateReplay(
     output: File,
     iterations: Int,
 ) {
-    val implementation = Engine(lib)
     inputs.forEach { input ->
         val bench = ReplayBench(input)
         bench.queries.forEachIndexed { qi, query ->
@@ -30,7 +29,8 @@ fun evaluateReplay(
                 type = IndexedResultEntry,
             ).use { writer ->
                 repeat(iterations) {
-                    implementation.Evaluator(query).use { evaluator ->
+                    val engine = ExternalEngine(lib, query)
+                    engine.use { evaluator ->
                         bench.changes.forEachIndexed { di, diff ->
                             evaluator.process(diff)
                             val results = evaluator.evaluate()

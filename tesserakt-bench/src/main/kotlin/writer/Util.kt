@@ -9,7 +9,7 @@ fun inputToOutputDir(
     index: Int,
 ): File {
     val base = inputToOutputDir(outputFolder, inputFile, implementation)
-    return File(base.parentFile, base.nameWithoutExtension + "_$index.csv")
+    return File(base.parentFile.parentFile, base.parentFile.name + "_$index", base.name)
 }
 
 fun inputToOutputDir(
@@ -18,7 +18,7 @@ fun inputToOutputDir(
     implementation: File,
 ): File {
     check(outputFolder.isDirectory) { "Output location should be a valid directory!" }
-    return File(outputFolder, implementation.nameWithoutExtension, inputFile.nameWithoutExtension + ".csv")
+    return File(outputFolder, inputFile.nameWithoutExtension, implementation.nameWithoutExtension + ".csv")
 }
 
 private fun File(parent: File, vararg paths: String): File {
