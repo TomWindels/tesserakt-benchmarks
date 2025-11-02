@@ -16,7 +16,7 @@ import java.io.File
 
 class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
 
-    class CommonOptions: OptionGroup("Benchmark options") {
+    class CommonOptions(name: String): OptionGroup("Benchmark options") {
 
         val engine: File by option("-e", "--engine")
             .file(mustExist = true, mustBeReadable = true)
@@ -25,8 +25,8 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
 
         val output: File by option("-o", "--output")
             .file(mustExist = false, mustBeWritable = true)
-            .help("`path/to/output_dir`, defaults to `./output`")
-            .default(File("output"))
+            .help("`path/to/output_dir`, defaults to `./output/$name`")
+            .default(File("output/$name"))
 
         val iterations: Int by option("--iterations")
             .int()
@@ -37,7 +37,7 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
 
     class Replay : CliktCommand(name = "replay") {
 
-        private val common by CommonOptions()
+        private val common by CommonOptions(commandName)
 
         private val input: List<File> by argument("input", "`path/to/replay_benchmark.ttl` (multiple allowed)")
             .file(mustExist = true, mustBeReadable = true)
@@ -56,7 +56,7 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
 
     class Stream : CliktCommand(name = "stream") {
 
-        private val common by CommonOptions()
+        private val common by CommonOptions(commandName)
 
         private val updateSize: Int by option("-s", "--size")
             .int()
