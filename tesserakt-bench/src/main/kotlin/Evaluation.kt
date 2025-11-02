@@ -1,4 +1,8 @@
+import bench.Benchmark
 import bench.replay.ReplayBench
+import dev.tesserakt.rdf.serialization.common.FileDataSource
+import dev.tesserakt.rdf.trig.serialization.TriGSerializer
+import dev.tesserakt.rdf.types.Quad
 import evaluator.ExternalEngine
 import writer.IndexedResultEntry
 import writer.OutputWriter
@@ -42,6 +46,66 @@ fun evaluateReplay(
             }
         }
     }
+}
+
+fun evaluateStream(
+    lib: File,
+    query: String,
+    inputs: List<File>,
+    output: File,
+    updateSize: Int,
+    iterations: Int,
+) {
+    inputs.forEach { input ->
+        report(lib, input)
+        OutputWriter(
+            target = inputToOutputDir(
+                outputFolder = output,
+                inputFile = input,
+                implementation = lib,
+            ),
+            type = IndexedResultEntry,
+        ).use { writer ->
+            repeat(iterations) {
+                val triples = TriGSerializer.deserialize(FileDataSource(input))
+                ExternalEngine(lib, query).use { evaluator ->
+                    var index = 0
+                    while (triples.hasNext()) {
+                        val update = triples.take(updateSize).toSet()
+                        val change = object: Benchmark.DataChange {
+                            override val insertions: Set<Quad>
+                                get() = update
+                            override val deletions: Set<Quad>
+                                get() = emptySet()
+                        }
+                        evaluator.process(change)
+                        val results = evaluator.evaluate()
+                        val entry = IndexedResultEntry(index, results)
+                        writer.append(entry)
+                        ++index
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun <T> Iterator<T>.take(size: Int): List<T> {
+    return buildList(size) {
+        repeat(size) {
+            if (!hasNext()) {
+                return@buildList
+            }
+            add(next())
+        }
+    }
+}
+
+private fun report(
+    implementation: File,
+    input: File,
+) {
+    println("${implementation.nameWithoutExtension}, ${input.name}")
 }
 
 private fun report(

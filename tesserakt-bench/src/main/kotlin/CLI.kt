@@ -54,6 +54,40 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
         }
     }
 
+    class Stream : CliktCommand(name = "stream") {
+
+        private val common by CommonOptions()
+
+        private val updateSize: Int by option("-s", "--size")
+            .int()
+            .help("The number of triples to add per iteration, defaults to 512")
+            .default(512)
+
+        private val query: String by option("-q", "--query")
+            .help("The query to evaluate")
+            .required()
+
+        private val input: List<File> by argument("input", "`path/to/dataset.ttl` (multiple allowed)")
+            .file(mustExist = true, mustBeReadable = true)
+            .multiple(required = true)
+
+        override fun run() {
+            common.output.mkdirs()
+            evaluateStream(
+                lib = common.engine,
+                inputs = input,
+                output = common.output,
+                query = query,
+                iterations = common.iterations,
+                updateSize = updateSize,
+            )
+        }
+
+    }
+
 }
 
-fun main(args: Array<String>) = CLI().subcommands(CLI.Replay()).main(args)
+fun main(args: Array<String>) = CLI().subcommands(
+    CLI.Replay(),
+    CLI.Stream(),
+).main(args)
