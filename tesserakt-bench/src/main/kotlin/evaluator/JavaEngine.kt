@@ -156,9 +156,14 @@ class JavaEngine(
                 arrayOf(URL("jar:file:$jarFile!/"))
             ).use { loader ->
                 classNames.forEach { name ->
-                    // skipping module files
-                    if (!name.endsWith("module-info")) {
-                        classes.add(loader.loadClass(name))
+                    val clazz = try {
+                        loader.loadClass(name)
+                    } catch (t: Throwable) {
+                        println("w: Skipping class `${name}` due to error: ${t::class.simpleName} - ${t.message}")
+                        null
+                    }
+                    if (clazz != null) {
+                        classes.add(clazz)
                     }
                 }
             }
