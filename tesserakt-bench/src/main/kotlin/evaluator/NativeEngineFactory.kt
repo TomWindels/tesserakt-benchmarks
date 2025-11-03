@@ -9,7 +9,7 @@ import dev.tesserakt.rdf.types.Quad
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
-class NativeEngine(lib: File) {
+class NativeEngineFactory(lib: File): EngineFactory {
 
     private interface NativeImplementation : Library {
 
@@ -50,7 +50,9 @@ class NativeEngine(lib: File) {
         }
     }
 
-    inner class Evaluator(query: String) : Engine {
+    override fun new(query: String): Engine = Instance(query = query)
+
+    private inner class Instance(query: String) : Engine {
 
         private val ptr = impl.create_evaluator(query)
 

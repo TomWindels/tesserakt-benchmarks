@@ -3,7 +3,7 @@ import bench.replay.ReplayBench
 import dev.tesserakt.rdf.serialization.common.FileDataSource
 import dev.tesserakt.rdf.trig.serialization.TriGSerializer
 import dev.tesserakt.rdf.types.Quad
-import evaluator.ExternalEngine
+import evaluator.ExternalEngineFactory
 import writer.IndexedResultEntry
 import writer.OutputWriter
 import writer.inputToOutputDir
@@ -15,6 +15,7 @@ fun evaluateReplay(
     output: File,
     iterations: Int,
 ) {
+    val factory = ExternalEngineFactory(lib)
     inputs.forEach { input ->
         val bench = ReplayBench(input)
         bench.queries.forEachIndexed { qi, query ->
@@ -33,7 +34,7 @@ fun evaluateReplay(
                 type = IndexedResultEntry,
             ).use { writer ->
                 repeat(iterations) {
-                    val engine = ExternalEngine(lib, query)
+                    val engine = factory.new(query)
                     engine.use { evaluator ->
                         bench.changes.forEachIndexed { di, diff ->
                             evaluator.process(diff)
@@ -56,6 +57,7 @@ fun evaluateStream(
     updateSize: Int,
     iterations: Int,
 ) {
+    val factory = ExternalEngineFactory(lib)
     inputs.forEach { input ->
         report(lib, input)
         OutputWriter(
@@ -68,7 +70,7 @@ fun evaluateStream(
         ).use { writer ->
             repeat(iterations) {
                 val triples = TriGSerializer.deserialize(FileDataSource(input))
-                ExternalEngine(lib, query).use { evaluator ->
+                factory.new(query).use { evaluator ->
                     var index = 0
                     while (triples.hasNext()) {
                         val update = triples.take(updateSize).toSet()
