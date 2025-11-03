@@ -16,6 +16,21 @@ fun inputToOutputDir(
     outputFolder: File,
     inputFile: File,
     implementation: File,
+    code: String,
+): File {
+    val base = inputToOutputDir(outputFolder, inputFile, implementation)
+    return File(
+        base.parentFile.parentFile,
+        base.parentFile.name,
+        code,
+        base.name
+    )
+}
+
+fun inputToOutputDir(
+    outputFolder: File,
+    inputFile: File,
+    implementation: File,
 ): File {
     check(outputFolder.isDirectory) { "Output location should be a valid directory!" }
     return File(outputFolder, inputFile.nameWithoutExtension, implementation.nameWithoutExtension + ".csv")

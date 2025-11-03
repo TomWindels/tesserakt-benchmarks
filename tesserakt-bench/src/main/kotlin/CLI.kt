@@ -6,17 +6,19 @@ import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.groups.OptionGroup
 import com.github.ajalt.clikt.parameters.groups.provideDelegate
-import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.help
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.file
 import com.github.ajalt.clikt.parameters.types.int
 import java.io.File
+import java.io.IOException
+import java.nio.file.*
+import java.nio.file.attribute.BasicFileAttributes
+import kotlin.io.path.readText
+
 
 class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
 
-    class CommonOptions(name: String): OptionGroup("Benchmark options") {
+    class CommonOptions(name: String) : OptionGroup("Benchmark options") {
 
         val engine: File by option("-e", "--engine")
             .file(mustExist = true, mustBeReadable = true)
@@ -63,9 +65,9 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
             .help("The number of triples to add per iteration, defaults to 512")
             .default(512)
 
-        private val query: String by option("-q", "--query")
-            .help("The query to evaluate")
-            .required()
+        private val queries: List<String> by option("-q", "--query")
+            .help("The query to evaluate, can be a file (multiple allowed)")
+            .multiple(required = true)
 
         private val input: List<File> by argument("input", "`path/to/dataset.ttl` (multiple allowed)")
             .file(mustExist = true, mustBeReadable = true)
@@ -73,11 +75,12 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
 
         override fun run() {
             common.output.mkdirs()
+            val queries = queries.readContents()
             evaluateStream(
                 lib = common.engine,
                 inputs = input,
                 output = common.output,
-                query = query,
+                queries = queries,
                 iterations = common.iterations,
                 updateSize = updateSize,
             )
@@ -91,3 +94,35 @@ fun main(args: Array<String>) = CLI().subcommands(
     CLI.Replay(),
     CLI.Stream(),
 ).main(args)
+
+/**
+ * Reads [this] list as a potential set of filepaths (or mix of filepaths and regular strings), replacing the
+ *  filepaths with their contents. May throw an exception for a filepath (like) string with no contents. The
+ *  size of the returned list is at least equal to this list's size, but may increase in case of globbing.
+ */
+private fun List<String>.readContents(): List<String> {
+    return flatMap { potentialPath ->
+        try {
+            Paths.get(potentialPath)
+        } catch (_: InvalidPathException) {
+            return@flatMap listOf(potentialPath)
+        }
+        // based on https://javapapers.com/java/glob-with-java-nio/
+        val matcher = FileSystems.getDefault().getPathMatcher("glob:${potentialPath}")
+        val location = potentialPath.substringBefore('*').substringBeforeLast('/')
+        val paths = mutableListOf<Path>()
+        Files.walkFileTree(Paths.get(location), object : SimpleFileVisitor<Path>() {
+            override fun visitFile(path: Path, attrs: BasicFileAttributes): FileVisitResult {
+                if (matcher.matches(path)) {
+                    paths.add(path)
+                }
+                return FileVisitResult.CONTINUE
+            }
+
+            override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                return FileVisitResult.CONTINUE
+            }
+        })
+        paths.map { it.readText() }
+    }
+}

@@ -51,7 +51,7 @@ fun evaluateReplay(
 
 fun evaluateStream(
     lib: File,
-    query: String,
+    queries: List<String>,
     inputs: List<File>,
     output: File,
     updateSize: Int,
@@ -59,32 +59,37 @@ fun evaluateStream(
 ) {
     val factory = ExternalEngineFactory(lib)
     inputs.forEach { input ->
-        report(lib, input)
-        OutputWriter(
-            target = inputToOutputDir(
-                outputFolder = output,
-                inputFile = input,
-                implementation = lib,
-            ),
-            type = IndexedResultEntry,
-        ).use { writer ->
-            repeat(iterations) {
-                val triples = TriGSerializer.deserialize(FileDataSource(input))
-                factory.new(query).use { evaluator ->
-                    var index = 0
-                    while (triples.hasNext()) {
-                        val update = triples.take(updateSize).toSet()
-                        val change = object: Benchmark.DataChange {
-                            override val insertions: Set<Quad>
-                                get() = update
-                            override val deletions: Set<Quad>
-                                get() = emptySet()
+        queries.forEach { query ->
+            // documented algorithm, and thus consistent hash codes can be expected
+            val code = query.hashCode().toHexString(HexFormat { this.upperCase = true })
+            report(lib, input, code)
+            OutputWriter(
+                target = inputToOutputDir(
+                    outputFolder = output,
+                    inputFile = input,
+                    implementation = lib,
+                    code = code,
+                ),
+                type = IndexedResultEntry,
+            ).use { writer ->
+                repeat(iterations) {
+                    val triples = TriGSerializer.deserialize(FileDataSource(input))
+                    factory.new(query).use { evaluator ->
+                        var index = 0
+                        while (triples.hasNext()) {
+                            val update = triples.take(updateSize).toSet()
+                            val change = object: Benchmark.DataChange {
+                                override val insertions: Set<Quad>
+                                    get() = update
+                                override val deletions: Set<Quad>
+                                    get() = emptySet()
+                            }
+                            evaluator.process(change)
+                            val results = evaluator.evaluate()
+                            val entry = IndexedResultEntry(index, results)
+                            writer.append(entry)
+                            ++index
                         }
-                        evaluator.process(change)
-                        val results = evaluator.evaluate()
-                        val entry = IndexedResultEntry(index, results)
-                        writer.append(entry)
-                        ++index
                     }
                 }
             }
@@ -108,6 +113,14 @@ private fun report(
     input: File,
 ) {
     println("${implementation.nameWithoutExtension}, ${input.name}")
+}
+
+private fun report(
+    implementation: File,
+    input: File,
+    code: String,
+) {
+    println("${implementation.nameWithoutExtension}, ${input.name}, $code")
 }
 
 private fun report(
