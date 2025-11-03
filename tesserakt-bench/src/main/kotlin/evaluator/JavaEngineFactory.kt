@@ -116,7 +116,7 @@ class JavaEngineFactory(jar: File) : EngineFactory {
                     return try {
                         method.invoke(engine, *arg)
                     } catch (e: Throwable) {
-                        throw Error("Failed to invoke ${method}", e)
+                        throw Error("Failed to invoke ${method} with arguments ${arg.joinToString()}", e)
                     }
                 }
 
