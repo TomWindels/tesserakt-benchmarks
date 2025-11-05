@@ -12,7 +12,7 @@ import java.io.File
 fun evaluateReplay(
     lib: File,
     inputs: List<File>,
-    output: File,
+    output: File?,
     iterations: Int,
 ) {
     val factory = ExternalEngineFactory(lib)
@@ -53,7 +53,7 @@ fun evaluateStream(
     lib: File,
     queries: List<String>,
     inputs: List<File>,
-    output: File,
+    output: File?,
     updateSize: Int,
     iterations: Int,
 ) {

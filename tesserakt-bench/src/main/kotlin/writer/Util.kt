@@ -3,21 +3,23 @@ package writer
 import java.io.File
 
 fun inputToOutputDir(
-    outputFolder: File,
+    outputFolder: File?,
     inputFile: File,
     implementation: File,
     index: Int,
-): File {
+): File? {
+    outputFolder ?: return null
     val base = inputToOutputDir(outputFolder, inputFile, implementation)
     return File(base.parentFile.parentFile, base.parentFile.name + "_$index", base.name)
 }
 
 fun inputToOutputDir(
-    outputFolder: File,
+    outputFolder: File?,
     inputFile: File,
     implementation: File,
     code: String,
-): File {
+): File? {
+    outputFolder ?: return null
     val base = inputToOutputDir(outputFolder, inputFile, implementation)
     return File(
         base.parentFile.parentFile,

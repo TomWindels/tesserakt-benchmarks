@@ -1,7 +1,4 @@
-import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.NoOpCliktCommand
-import com.github.ajalt.clikt.core.main
-import com.github.ajalt.clikt.core.subcommands
+import com.github.ajalt.clikt.core.*
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.groups.OptionGroup
@@ -9,6 +6,7 @@ import com.github.ajalt.clikt.parameters.groups.provideDelegate
 import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.file
 import com.github.ajalt.clikt.parameters.types.int
+import com.github.ajalt.clikt.parsers.OptionInvocation
 import java.io.File
 import java.io.IOException
 import java.nio.file.*
@@ -25,15 +23,28 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
             .help("`path/to/engine.so`")
             .required()
 
-        val output: File by option("-o", "--output")
-            .file(mustExist = false, mustBeWritable = true)
+        private val _dryRun: Boolean by option("--dry-run")
+            .flag(default = false)
+            .help("Disables output writing")
+
+        private val _output: File by option("-o", "--output")
+            .file(mustExist = false, mustBeWritable = false) // writable check happens in `fin!_dryRunalize()`
             .help("`path/to/output_dir`, defaults to `./output/$name`")
             .default(File("output/$name"))
+
+        val output: File? get() = if (_dryRun) null else _output
 
         val iterations: Int by option("--iterations")
             .int()
             .help("The number of iterations for every configuration, defaults to 5")
             .default(5)
+
+        override fun finalize(context: Context, invocationsByOption: Map<Option, List<OptionInvocation>>) {
+            super.finalize(context, invocationsByOption)
+            if (!_dryRun) {
+                check(_output.canWrite())
+            }
+        }
 
     }
 
@@ -46,7 +57,7 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
             .multiple(required = true)
 
         override fun run() {
-            common.output.mkdirs()
+            common.output?.mkdirs()
             evaluateReplay(
                 lib = common.engine,
                 inputs = input,
@@ -74,7 +85,7 @@ class CLI : NoOpCliktCommand(name = "tesserakt-bench") {
             .multiple(required = true)
 
         override fun run() {
-            common.output.mkdirs()
+            common.output?.mkdirs()
             val queries = queries.readContents()
             evaluateStream(
                 lib = common.engine,
