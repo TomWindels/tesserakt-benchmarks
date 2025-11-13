@@ -11,6 +11,7 @@ import kotlin.time.Duration.Companion.seconds
 
 class NativeEngineFactory(lib: File): EngineFactory {
 
+    @Suppress("FunctionName")
     private interface NativeImplementation : Library {
 
         fun create_evaluator(query: String): Pointer
@@ -50,7 +51,7 @@ class NativeEngineFactory(lib: File): EngineFactory {
         }
     }
 
-    override fun new(query: String): Engine = Instance(query = query)
+    override suspend fun new(query: String): Engine = Instance(query = query)
 
     private inner class Instance(query: String) : Engine {
 
@@ -58,12 +59,12 @@ class NativeEngineFactory(lib: File): EngineFactory {
 
         private val cache = mutableMapOf<Quad.Element, Pointer>()
 
-        override fun process(delta: Benchmark.DataChange) {
+        override suspend fun process(delta: Benchmark.DataChange) {
             delta.insertions.forEach { insert(it) }
             delta.deletions.forEach { remove(it) }
         }
 
-        override fun evaluate(): Results {
+        override suspend fun evaluate(): Results {
             impl.exec_evaluator(ptr)
             val duration = impl.get_last_duration(ptr).seconds
             val checksum = impl.get_last_checksum(ptr)

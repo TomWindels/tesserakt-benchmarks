@@ -4,9 +4,9 @@ import bench.Benchmark
 
 interface Engine: AutoCloseable {
 
-    fun process(delta: Benchmark.DataChange)
+    suspend fun process(delta: Benchmark.DataChange)
 
-    fun evaluate(): Results
+    suspend fun evaluate(): Results
 
     override fun close() {
         // no default implementation

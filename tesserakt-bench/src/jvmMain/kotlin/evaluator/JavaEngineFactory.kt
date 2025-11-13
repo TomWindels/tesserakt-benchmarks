@@ -19,7 +19,7 @@ class JavaEngineFactory(jar: File) : EngineFactory {
         .constructors
         .find { it.parameters.size == 1 && it.parameters[0].type == String::class.java }!!
 
-    override fun new(query: String): Engine {
+    override suspend fun new(query: String): Engine {
         return Instance(engine = engineConstructor.newInstance(query))
     }
 
@@ -49,7 +49,7 @@ class JavaEngineFactory(jar: File) : EngineFactory {
 
         private val cache = WeakHashMap<Quad.Element, Any>()
 
-        override fun evaluate(): Results {
+        override suspend fun evaluate(): Results {
             run()
             val duration = getLastDuration() as Double
             val checksum = getLastChecksum() as Int
@@ -61,7 +61,7 @@ class JavaEngineFactory(jar: File) : EngineFactory {
             )
         }
 
-        override fun process(delta: Benchmark.DataChange) {
+        override suspend fun process(delta: Benchmark.DataChange) {
             delta.insertions.forEach { insert(it) }
             delta.deletions.forEach { remove(it) }
         }

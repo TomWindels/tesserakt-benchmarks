@@ -2,6 +2,6 @@ package evaluator
 
 interface EngineFactory {
 
-    fun new(query: String): Engine
+    suspend fun new(query: String): Engine
 
 }

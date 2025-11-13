@@ -1,12 +1,12 @@
 package writer
 
-import java.io.File
+import Path
 import java.io.FileOutputStream
 
-class FileOutputWriter(target: File, type: ResultEntry.Type) : OutputWriter {
+actual class FileOutputWriter actual constructor(target: Path, type: ResultEntry.Type) : OutputWriter {
 
     private val stream = FileOutputStream(
-        target
+        target.asFile
             .also {
                 check(!it.exists()) { "Tried to write to a file that already exists: `${it.absolutePath}`"}
                 it.parentFile.mkdirs()
@@ -17,12 +17,12 @@ class FileOutputWriter(target: File, type: ResultEntry.Type) : OutputWriter {
         stream.write(type.CSV_HEADER)
     }
 
-    override fun append(result: ResultEntry) {
+    actual override fun append(result: ResultEntry) {
         stream.write("\n")
         stream.write(result.toCsv())
     }
 
-    override fun close() {
+    actual override fun close() {
         stream.close()
     }
 

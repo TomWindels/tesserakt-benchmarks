@@ -7,17 +7,16 @@ import evaluator.ExternalEngineFactory
 import writer.IndexedResultEntry
 import writer.OutputWriter
 import writer.inputToOutputDir
-import java.io.File
 
-fun evaluateReplay(
-    lib: File,
-    inputs: List<File>,
-    output: File?,
+suspend fun evaluateReplay(
+    lib: Path,
+    inputs: List<Path>,
+    output: Path?,
     iterations: Int,
 ) {
     val factory = ExternalEngineFactory(lib)
     inputs.forEach { input ->
-        val bench = ReplayBench(input)
+        val bench = ReplayBench(input.absolutePath)
         bench.queries.forEachIndexed { qi, query ->
             report(
                 implementation = lib,
@@ -49,11 +48,11 @@ fun evaluateReplay(
     }
 }
 
-fun evaluateStream(
-    lib: File,
+suspend fun evaluateStream(
+    lib: Path,
     queries: List<String>,
-    inputs: List<File>,
-    output: File?,
+    inputs: List<Path>,
+    output: Path?,
     updateSize: Int,
     iterations: Int,
 ) {
@@ -73,7 +72,7 @@ fun evaluateStream(
                 type = IndexedResultEntry,
             ).use { writer ->
                 repeat(iterations) {
-                    val triples = TriGSerializer.deserialize(FileDataSource(input))
+                    val triples = TriGSerializer.deserialize(FileDataSource(input.absolutePath))
                     factory.new(query).use { evaluator ->
                         var index = 0
                         while (triples.hasNext()) {
@@ -109,23 +108,23 @@ private fun <T> Iterator<T>.take(size: Int): List<T> {
 }
 
 private fun report(
-    implementation: File,
-    input: File,
+    implementation: Path,
+    input: Path,
 ) {
     println("${implementation.nameWithoutExtension}, ${input.name}")
 }
 
 private fun report(
-    implementation: File,
-    input: File,
+    implementation: Path,
+    input: Path,
     code: String,
 ) {
     println("${implementation.nameWithoutExtension}, ${input.name}, $code")
 }
 
 private fun report(
-    implementation: File,
-    input: File,
+    implementation: Path,
+    input: Path,
     index: Int,
 ) {
     println("${implementation.nameWithoutExtension}, ${input.name} #${index}")
