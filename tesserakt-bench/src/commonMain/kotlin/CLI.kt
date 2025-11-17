@@ -26,6 +26,10 @@ class CLI : SuspendingNoOpCliktCommand(name = "tesserakt-bench") {
             .flag(default = false)
             .help("Disables output writing")
 
+        val failFast: Boolean by option("--fail-fast")
+            .flag(default = false)
+            .help("Stops evaluation upon first failure")
+
         private val _output: String by option("-o", "--output")
             .help("`path/to/output_dir`, defaults to `./output/$name`")
             .default("./output/$name")
@@ -68,6 +72,7 @@ class CLI : SuspendingNoOpCliktCommand(name = "tesserakt-bench") {
                 inputs = input,
                 output = common.output,
                 iterations = common.iterations,
+                failFast = common.failFast,
             )
         }
     }
@@ -104,6 +109,7 @@ class CLI : SuspendingNoOpCliktCommand(name = "tesserakt-bench") {
                 queries = queries,
                 iterations = common.iterations,
                 updateSize = updateSize,
+                failFast = common.failFast,
             )
         }
 
