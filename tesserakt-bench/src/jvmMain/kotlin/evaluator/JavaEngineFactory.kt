@@ -7,20 +7,25 @@ import java.lang.reflect.Method
 import java.net.URL
 import java.net.URLClassLoader
 import java.util.*
-import java.util.jar.JarFile
 import kotlin.reflect.KProperty
 import kotlin.time.Duration.Companion.seconds
 
 
 class JavaEngineFactory(jar: File) : EngineFactory {
 
-    private val engineConstructor = getClassesFromJarFile(jar)
-        .find { it.kotlin.qualifiedName == "Engine" }!!
+    private val loader = URLClassLoader(arrayOf(URL("jar:file:$jar!/")))
+
+    private val engineConstructor = loader.loadClass("Engine")
         .constructors
         .find { it.parameters.size == 1 && it.parameters[0].type == String::class.java }!!
 
     override suspend fun new(query: String): Engine {
         return Instance(engine = engineConstructor.newInstance(query))
+    }
+
+    override fun close() {
+        super.close()
+        loader.close()
     }
 
     private class Instance(engine: Any): Engine {
@@ -44,6 +49,8 @@ class JavaEngineFactory(jar: File) : EngineFactory {
         private val createLangLiteralNode by engine.method(String::class.java, String::class.java)
         private val insertQuad by engine.method(Any::class.java, Any::class.java, Any::class.java)
         private val removeQuad by engine.method(Any::class.java, Any::class.java, Any::class.java)
+        // it's not necessary to have this method defined, so it's wrapped in a try-catch in case it's not defined
+        private val close = runCatching { val close by engine.method(); close }.getOrNull()
 
         // actual engine use
 
@@ -64,6 +71,11 @@ class JavaEngineFactory(jar: File) : EngineFactory {
         override suspend fun process(delta: Benchmark.DataChange) {
             delta.insertions.forEach { insert(it) }
             delta.deletions.forEach { remove(it) }
+        }
+
+        override fun close() {
+            super.close()
+            close?.invoke()
         }
 
         private fun insert(quad: Quad) {
@@ -134,47 +146,5 @@ class JavaEngineFactory(jar: File) : EngineFactory {
 
         }
     }
-
-    companion object {
-
-        // src: https://www.baeldung.com/jar-file-get-class-names
-        private fun getClassNamesFromJarFile(givenFile: File): Set<String> {
-            val classNames = mutableSetOf<String>()
-            JarFile(givenFile).use { jar ->
-                jar.entries().iterator().forEach { entry ->
-                    if (entry.getName().endsWith(".class")) {
-                        val className: String = entry.getName()
-                            .replace("/", ".")
-                            .replace(".class", "")
-                        classNames.add(className)
-                    }
-                }
-                return classNames
-            }
-        }
-
-        private fun getClassesFromJarFile(jarFile: File): Set<Class<*>> {
-            val classNames = getClassNamesFromJarFile(jarFile)
-            val classes = mutableSetOf<Class<*>>()
-            URLClassLoader.newInstance(
-                arrayOf(URL("jar:file:$jarFile!/"))
-            ).use { loader ->
-                classNames.forEach { name ->
-                    val clazz = try {
-                        loader.loadClass(name)
-                    } catch (t: Throwable) {
-                        println("w: Skipping class `${name}` due to error: ${t::class.simpleName} - ${t.message}")
-                        null
-                    }
-                    if (clazz != null) {
-                        classes.add(clazz)
-                    }
-                }
-            }
-            return classes
-        }
-
-    }
-
 
 }

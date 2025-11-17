@@ -46,6 +46,7 @@ suspend fun evaluateReplay(
             }
         }
     }
+    factory.close()
 }
 
 suspend fun evaluateStream(
@@ -94,6 +95,7 @@ suspend fun evaluateStream(
             }
         }
     }
+    factory.close()
 }
 
 private fun <T> Iterator<T>.take(size: Int): List<T> {

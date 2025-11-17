@@ -13,4 +13,9 @@ actual class ExternalEngineFactory(
 
     actual override suspend fun new(query: String): Engine = inner.new(query)
 
+    actual override fun close() {
+        super.close()
+        inner.close()
+    }
+
 }
