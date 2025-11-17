@@ -6,25 +6,19 @@ fun inputToOutputDir(
     outputFolder: Path?,
     inputFile: Path,
     implementation: Path,
-    index: Int,
-): Path? {
-    outputFolder ?: return null
-    val base = inputToOutputDir(outputFolder, inputFile, implementation)
-    return Path(base.parentPath.parentPath, base.parentPath.name + "_$index", base.name)
-}
-
-fun inputToOutputDir(
-    outputFolder: Path?,
-    inputFile: Path,
-    implementation: Path,
     code: String,
+    metadata: Metadata,
 ): Path? {
     outputFolder ?: return null
-    val base = inputToOutputDir(outputFolder, inputFile, implementation)
-    return Path(
+    val base = inputToOutputDir(outputFolder, inputFile, implementation, NoMetadata)
+    val root = Path(
         base.parentPath.parentPath,
         base.parentPath.name,
         code,
+    )
+    writeMetadata(root, metadata)
+    return Path(
+        root,
         base.name
     )
 }
@@ -33,9 +27,12 @@ fun inputToOutputDir(
     outputFolder: Path,
     inputFile: Path,
     implementation: Path,
+    metadata: Metadata,
 ): Path {
     check(outputFolder.isDirectory) { "Output location should be a valid directory!" }
-    return Path(outputFolder, inputFile.nameWithoutExtension, implementation.nameWithoutExtension + ".csv")
+    val base = Path(outputFolder, inputFile.nameWithoutExtension)
+    writeMetadata(parent = base, metadata = metadata)
+    return Path(base, implementation.nameWithoutExtension + ".csv")
 }
 
 private fun Path(parent: Path, vararg paths: String): Path {

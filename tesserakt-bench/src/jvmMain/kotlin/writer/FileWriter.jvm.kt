@@ -3,7 +3,7 @@ package writer
 import Path
 import java.io.FileOutputStream
 
-actual class FileOutputWriter actual constructor(target: Path, type: ResultEntry.Type) : OutputWriter {
+actual class FileWriter actual constructor(target: Path) : AutoCloseable {
 
     private val stream = FileOutputStream(
         target.asFile
@@ -13,13 +13,8 @@ actual class FileOutputWriter actual constructor(target: Path, type: ResultEntry
             }
     ).bufferedWriter()
 
-    init {
-        stream.write(type.CSV_HEADER)
-    }
-
-    actual override fun append(result: ResultEntry) {
-        stream.write("\n")
-        stream.write(result.toCsv())
+    actual fun append(text: String) {
+        stream.write(text)
     }
 
     actual override fun close() {

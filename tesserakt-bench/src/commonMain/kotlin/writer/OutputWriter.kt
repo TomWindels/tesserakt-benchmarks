@@ -8,7 +8,10 @@ interface OutputWriter : AutoCloseable {
 
 }
 
-fun OutputWriter(target: Path?, type: ResultEntry.Type) = if (target != null) {
+fun OutputWriter(
+    target: Path?,
+    type: ResultEntry.Type,
+) = if (target != null) {
     FileOutputWriter(target, type)
 } else {
     NoOpOutputWriter

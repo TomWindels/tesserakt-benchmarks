@@ -10,21 +10,15 @@ private val APPEND_MODE = run {
     a
 }
 
-
-actual class FileOutputWriter actual constructor(
-    private val target: Path,
-    type: ResultEntry.Type,
-) : OutputWriter {
-
+actual class FileWriter actual constructor(private val target: Path) : AutoCloseable {
 
     init {
         check(!target.exists()) { "Tried to write to a file that already exists: `${target.absolutePath}`"}
         target.parentPath.mkdirs()
-        fs.writeFileSync(target.absolutePath, type.CSV_HEADER)
     }
 
-    actual override fun append(result: ResultEntry) {
-        fs.writeFileSync(target.absolutePath, "\n" + result.toCsv(), APPEND_MODE)
+    actual fun append(text: String) {
+        fs.writeFileSync(target.absolutePath, text, APPEND_MODE)
     }
 
     actual override fun close() {

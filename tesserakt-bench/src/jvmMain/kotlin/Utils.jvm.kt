@@ -2,6 +2,7 @@
 import java.io.IOException
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
+import java.security.MessageDigest
 import kotlin.io.path.readText
 import java.nio.file.Path as JavaPath
 
@@ -30,4 +31,9 @@ actual fun List<String>.readContents(): List<String> {
         })
         paths.map { it.readText() }
     }
+}
+
+actual fun String.md5(): String {
+    val md = MessageDigest.getInstance("MD5")
+    return md.digest(encodeToByteArray()).toHexString()
 }

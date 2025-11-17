@@ -4,9 +4,7 @@ import dev.tesserakt.rdf.serialization.common.FileDataSource
 import dev.tesserakt.rdf.trig.serialization.TriGSerializer
 import dev.tesserakt.rdf.types.Quad
 import evaluator.ExternalEngineFactory
-import writer.IndexedResultEntry
-import writer.OutputWriter
-import writer.inputToOutputDir
+import writer.*
 import kotlin.time.measureTime
 
 suspend fun evaluateReplay(
@@ -19,11 +17,12 @@ suspend fun evaluateReplay(
     val factory = ExternalEngineFactory(lib)
     inputs.forEach { input ->
         val bench = ReplayBench(input.absolutePath)
-        bench.queries.forEachIndexed { qi, query ->
+        bench.queries.forEach { query ->
+            val code = query.md5()
             report(
                 implementation = lib,
                 input = input,
-                index = qi,
+                code = code,
                 failFast = failFast,
             ) {
                 OutputWriter(
@@ -31,7 +30,8 @@ suspend fun evaluateReplay(
                         outputFolder = output,
                         inputFile = input,
                         implementation = lib,
-                        index = qi
+                        code = code,
+                        metadata = ReplayEvaluationMetadata(query = query, diffs = bench.changes)
                     ),
                     type = IndexedResultEntry,
                 ).use { writer ->
@@ -53,6 +53,23 @@ suspend fun evaluateReplay(
     factory.close()
 }
 
+class ReplayEvaluationMetadata(
+    val query: String,
+    val diffs: Iterable<Benchmark.DataChange>,
+) : Metadata {
+    override fun MetadataWriteContext.write() {
+        file("query.rq") {
+            append(query)
+        }
+        file("diffs.csv") {
+            append("additions,deletions")
+            diffs.forEach { diff ->
+                append("\n${diff.insertions.size},${diff.deletions.size}")
+            }
+        }
+    }
+}
+
 suspend fun evaluateStream(
     lib: Path,
     queries: List<String>,
@@ -66,7 +83,7 @@ suspend fun evaluateStream(
     inputs.forEach { input ->
         queries.forEach { query ->
             // documented algorithm, and thus consistent hash codes can be expected
-            val code = query.hashCode().toHexString(HexFormat { this.upperCase = true })
+            val code = query.md5()
             report(
                 implementation = lib,
                 input = input,
@@ -79,6 +96,7 @@ suspend fun evaluateStream(
                         inputFile = input,
                         implementation = lib,
                         code = code,
+                        metadata = NoMetadata,
                     ),
                     type = IndexedResultEntry,
                 ).use { writer ->

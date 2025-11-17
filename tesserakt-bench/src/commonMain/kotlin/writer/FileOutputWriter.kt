@@ -2,10 +2,20 @@ package writer
 
 import Path
 
-expect class FileOutputWriter(target: Path, type: ResultEntry.Type) : OutputWriter {
+class FileOutputWriter(target: Path, type: ResultEntry.Type) : OutputWriter {
 
-    override fun append(result: ResultEntry)
+    private val writer = FileWriter(target)
 
-    override fun close()
+    init {
+        writer.append(type.CSV_HEADER)
+    }
+
+    override fun append(result: ResultEntry) {
+        writer.append("\n${result.toCsv()}")
+    }
+
+    override fun close() {
+        writer.close()
+    }
 
 }

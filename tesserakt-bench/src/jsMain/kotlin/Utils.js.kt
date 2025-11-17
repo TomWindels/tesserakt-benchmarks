@@ -9,3 +9,9 @@ private val ENCODING = run {
 actual fun List<String>.readContents(): List<String> {
     return map { fs.readFileSync(it, ENCODING) }
 }
+
+private val crypto = js("require(\"crypto\")")
+
+actual fun String.md5(): String {
+    return crypto.createHash("md5").update(this).digest("hex")
+}
