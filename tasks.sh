@@ -36,8 +36,12 @@ bench_jvm replay -e tesserakt-jar/build/libs/*.jar input/replay/*
 bench_jvm replay -e jena/build/libs/*.jar input/replay/*
 bench_jvm replay -e blazegraph/build/libs/*.jar input/replay/*
 bench_jvm replay -e oxigraph/target/release/*.so input/replay/*
-bench_js replay -e incremunica-replay-evaluation/incremunica.mjs input/replay/*
-bench_js replay -e comunica/comunica.mjs input/replay/*
+for file in input/replay/*; do
+	bench_js replay -e incremunica-replay-evaluation/incremunica.mjs "$file"
+done
+for file in input/replay/*; do
+	bench_js replay -e comunica/comunica.mjs "$file"
+done
 
 # The entire output can now be compressed into a single tar
 tar -czf "output-$DATE.tar.gz" output
