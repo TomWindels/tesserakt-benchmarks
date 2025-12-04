@@ -1,15 +1,16 @@
 import { createRequire } from 'module';
+
 const require = createRequire(import.meta.url);
 
 function local_require(name) {
     return require(`${import.meta.dirname}/node_modules/${name}`);
 }
 
-// const comunica = require('@comunica/query-sparql');
-// const { DataFactory, Store } = require('n3');
-
 const comunica = local_require('@comunica/query-sparql');
-const { DataFactory, Store } = local_require('n3');
+const RdfStore = local_require("rdf-stores").RdfStore;
+const DataFactory = local_require("rdf-data-factory").DataFactory;
+
+const DF = new DataFactory();
 
 function get_checksum_for_term(term) {
     if (term.termType == 'NamedNode') {
@@ -39,7 +40,7 @@ export class ComunicaEvaluator {
         this.lastDuration = 0;
         this.lastChecksum = 0;
         this.lastCount = 0;
-        this.store = new Store();
+        this.store = RdfStore.createDefault();
         this.engine = new comunica.QueryEngine();
     }
 
@@ -71,27 +72,27 @@ export class ComunicaEvaluator {
     }
 
     createNamedNode(uri) {
-        return DataFactory.namedNode(uri);
+        return DF.namedNode(uri);
     }
 
     createBlankNode(id) {
-        return DataFactory.blankNode(`${id}`);
+        return DF.blankNode(`${id}`);
     }
 
     createTypedLiteralNode(value, dtype) {
-        return DataFactory.literal(value, DataFactory.namedNode(dtype));
+        return DF.literal(value, DF.namedNode(dtype));
     }
 
     createLangLiteralNode(value, lang) {
-        return DataFactory.literal(value, lang);
+        return DF.literal(value, lang);
     }
 
     insertQuad(s, p, o) {
-        this.store.addQuad(DataFactory.quad(s, p, o));
+        this.store.addQuad(DF.quad(s, p, o));
     }
 
     removeQuad(s, p, o) {
-        this.store.removeQuad(DataFactory.quad(s, p, o));
+        this.store.removeQuad(DF.quad(s, p, o));
     }
 
 }
