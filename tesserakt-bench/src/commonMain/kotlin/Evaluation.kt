@@ -16,7 +16,12 @@ suspend fun evaluateReplay(
 ) {
     val factory = ExternalEngineFactory(lib)
     inputs.forEach { input ->
-        val bench = ReplayBench(input.absolutePath)
+        val bench = try {
+            ReplayBench(input.absolutePath)
+        } catch(t: Throwable) {
+            println("Failed to use input file `${input.absolutePath}`: caught ${t::class.simpleName}\n${t.stackTraceToString()}")
+            return@forEach
+        }
         bench.queries.forEach { query ->
             val code = query.md5()
             report(
