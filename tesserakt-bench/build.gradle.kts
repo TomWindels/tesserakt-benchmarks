@@ -43,7 +43,9 @@ kotlin {
     }
 }
 
+// see https://boyl.es/post/two-versions-same-library/ and https://gradleup.com/shadow/configuration/relocation/
 tasks.named<ShadowJar>("shadowJar") {
+    relocate("dev.tesserakt", "benchmark.tesserakt")
     manifest {
         attributes["Main-Class"] = "CLIKt"
     }
