@@ -2,14 +2,14 @@ package bench.replay
 
 import bench.Benchmark
 import dev.tesserakt.rdf.serialization.common.FileDataSource
-import dev.tesserakt.rdf.trig.serialization.TriGSerializer
+import dev.tesserakt.rdf.serialization.trig.TriG
 import dev.tesserakt.rdf.types.Quad
-import dev.tesserakt.rdf.types.consume
+import dev.tesserakt.rdf.types.Store
 import dev.tesserakt.sparql.benchmark.replay.ReplayBenchmark
 
 class ReplayBench(filepath: String) : Benchmark {
 
-    private val bench = ReplayBenchmark.from(TriGSerializer.deserialize(FileDataSource(filepath)).consume()).single()
+    private val bench = ReplayBenchmark.from(Store(FileDataSource(filepath), TriG)).single()
 
     override val queries: List<String> get() = bench.queries
 

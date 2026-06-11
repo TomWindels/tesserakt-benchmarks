@@ -1,7 +1,8 @@
 import bench.Benchmark
 import bench.replay.ReplayBench
 import dev.tesserakt.rdf.serialization.common.FileDataSource
-import dev.tesserakt.rdf.trig.serialization.TriGSerializer
+import dev.tesserakt.rdf.serialization.common.Format.Companion.serializer
+import dev.tesserakt.rdf.serialization.trig.TriG
 import dev.tesserakt.rdf.types.Quad
 import evaluator.ExternalEngineFactory
 import writer.*
@@ -106,7 +107,7 @@ suspend fun evaluateStream(
                     type = IndexedResultEntry,
                 ).use { writer ->
                     repeat(iterations) {
-                        val triples = TriGSerializer.deserialize(FileDataSource(input.absolutePath))
+                        val triples = serializer(TriG).deserialize(FileDataSource(input.absolutePath))
                         factory.new(query).use { evaluator ->
                             var index = 0
                             while (triples.hasNext()) {
@@ -201,6 +202,7 @@ private suspend inline fun report(
     }
     result.onFailure {
         println(" failed [${it::class.simpleName} - ${it.message}] (took $duration)")
+        it.printStackTrace()
         if (failFast) {
             throw it
         }

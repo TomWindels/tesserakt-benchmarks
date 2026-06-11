@@ -50,7 +50,7 @@ class Engine(query: String) {
     fun createTypedLiteralNode(value: String, dtype: String) = Quad.Literal(value, Quad.NamedTerm(dtype))
 
     @JvmName("createLangLiteralNode")
-    fun createLangLiteralNode(value: String, tag: String) = Quad.LangString(value, tag)
+    fun createLangLiteralNode(value: String, tag: String) = Quad.Literal(value, tag)
 
     @JvmName("insertQuad")
     fun insertQuad(s: Any?, p: Any?, o: Any?) {
