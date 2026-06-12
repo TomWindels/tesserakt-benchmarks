@@ -1,0 +1,3 @@
+[submodule "kolibrie/Kolibrie"]
+	path = kolibrie/Kolibrie
+	url = https://github.com/StreamIntelligenceLab/Kolibrie.git
