@@ -7,10 +7,14 @@ import bench.Benchmark
 import dev.tesserakt.rdf.types.Quad
 import kotlin.js.Promise
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 class JsModuleEngine(private val instance: dynamic): Engine {
 
+    private var sinceLastDataChange = TimeSource.Monotonic.markNow()
+
     override suspend fun process(delta: Benchmark.DataChange) {
+        sinceLastDataChange = TimeSource.Monotonic.markNow()
         delta.insertions.forEach { insert(it) }
         delta.deletions.forEach { remove(it) }
     }
@@ -23,7 +27,8 @@ class JsModuleEngine(private val instance: dynamic): Engine {
         return Results(
             count = count,
             checksum = checksum,
-            duration = duration,
+            queryEvaluationDuration = duration,
+            roundTripTime = sinceLastDataChange.elapsedNow(),
         )
     }
 

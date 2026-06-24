@@ -8,6 +8,7 @@ import com.sun.jna.Pointer
 import dev.tesserakt.rdf.types.Quad
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 class NativeEngineFactory(lib: File): EngineFactory {
 
@@ -55,11 +56,13 @@ class NativeEngineFactory(lib: File): EngineFactory {
 
     private inner class Instance(query: String) : Engine {
 
+        private var sinceLastDataChange = TimeSource.Monotonic.markNow()
         private val ptr = impl.create_evaluator(query)
 
         private val cache = mutableMapOf<Quad.Element, Pointer>()
 
         override suspend fun process(delta: Benchmark.DataChange) {
+            sinceLastDataChange = TimeSource.Monotonic.markNow()
             delta.insertions.forEach { insert(it) }
             delta.deletions.forEach { remove(it) }
         }
@@ -70,9 +73,10 @@ class NativeEngineFactory(lib: File): EngineFactory {
             val checksum = impl.get_last_checksum(ptr)
             val count = impl.get_last_count(ptr)
             return Results(
-                duration = duration,
+                queryEvaluationDuration = duration,
                 checksum = checksum,
                 count = count,
+                roundTripTime = sinceLastDataChange.elapsedNow(),
             )
         }
 

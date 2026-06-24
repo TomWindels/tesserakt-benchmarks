@@ -9,6 +9,7 @@ import java.net.URLClassLoader
 import java.util.*
 import kotlin.reflect.KProperty
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 
 class JavaEngineFactory(jar: File) : EngineFactory {
@@ -54,6 +55,7 @@ class JavaEngineFactory(jar: File) : EngineFactory {
 
         // actual engine use
 
+        private var sinceLastDataChange = TimeSource.Monotonic.markNow()
         private val cache = WeakHashMap<Quad.Element, Any>()
 
         override suspend fun evaluate(): Results {
@@ -64,11 +66,13 @@ class JavaEngineFactory(jar: File) : EngineFactory {
             return Results(
                 count = count,
                 checksum = checksum,
-                duration = duration.seconds,
+                queryEvaluationDuration = duration.seconds,
+                roundTripTime = sinceLastDataChange.elapsedNow()
             )
         }
 
         override suspend fun process(delta: Benchmark.DataChange) {
+            sinceLastDataChange = TimeSource.Monotonic.markNow()
             delta.insertions.forEach { insert(it) }
             delta.deletions.forEach { remove(it) }
         }
