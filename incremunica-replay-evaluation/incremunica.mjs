@@ -53,6 +53,8 @@ export class IncremunicaEvaluator {
         this.store = store;
         this.total = new Map();
         this.lastDuration = 0;
+        this.lastStart = process.hrtime.bigint();
+        this.lastRoundTripTime = 0;
         this.lastChecksum = 0;
         this.lastCount = 0;
         this.stream = stream;
@@ -91,7 +93,16 @@ export class IncremunicaEvaluator {
         // cleaning up
         this.stream.removeAllListeners('data');
         this.lastDuration = Number(latest - start) / 1_000_000;
+        this.lastRoundTripTime = Number(latest - this.lastStart) / 1_000_000;
         this.lastChecksum = get_checksum_for_resultset(this.total);
+    }
+
+    startRoundTripTimer() {
+        this.lastStart = process.hrtime.bigint();
+    }
+
+    getLastRoundTripTime() {
+        return this.lastRoundTripTime;
     }
 
     getLastDuration() {

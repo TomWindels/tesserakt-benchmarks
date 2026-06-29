@@ -15,6 +15,9 @@ class JsModuleEngine(private val instance: dynamic): Engine {
 
     override suspend fun process(delta: Benchmark.DataChange) {
         sinceLastDataChange = TimeSource.Monotonic.markNow()
+        runCatching {
+            instance.startRoundTripTimer()
+        }
         delta.insertions.forEach { insert(it) }
         delta.deletions.forEach { remove(it) }
     }
@@ -22,13 +25,18 @@ class JsModuleEngine(private val instance: dynamic): Engine {
     override suspend fun evaluate(): Results {
         (instance.run() as Promise<dynamic>).await()
         val duration = (instance.getLastDuration() as JsNumber).milliseconds
+        val roundTripTime = runCatching {
+            (instance.getLastRoundTripTime() as JsNumber).milliseconds
+        }.getOrElse {
+            sinceLastDataChange.elapsedNow()
+        }
         val checksum = (instance.getLastChecksum() as JsNumber).toInt()
         val count = (instance.getLastCount() as JsNumber).toInt()
         return Results(
             count = count,
             checksum = checksum,
             queryEvaluationDuration = duration,
-            roundTripTime = sinceLastDataChange.elapsedNow(),
+            roundTripTime = roundTripTime,
         )
     }
 
