@@ -31,8 +31,8 @@ impl QueryEvaluator {
         let mut checksum = 0;
         // the use of the non-deprecated version causes memory issues when evaluating with
         // `railway-batch-2-inferred_batch_connected_segments_inject_connected_segments_repair_connected_segments-25.ttl`
-        // let query_solutions = execute_query_rayon_parallel2_volcano(&self.query, &mut self.store);
-        let query_solutions = execute_query(&self.query, &mut self.store);
+        let query_solutions = execute_query_rayon_parallel2_volcano(&self.query, &mut self.store);
+        // let query_solutions = execute_query(&self.query, &mut self.store);
         let duration = start.elapsed();
         for solution in &query_solutions {
             let solution = solution;
