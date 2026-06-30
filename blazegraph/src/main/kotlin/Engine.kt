@@ -39,9 +39,9 @@ class Engine(private val query: String) {
             val eval = conn.prepareTupleQuery(QueryLanguage.SPARQL, query).evaluate()
             while (eval.hasNext()) {
                 val results = eval.next()
+                ++count
                 results.forEach {
                     checksum += it.value.checksumValue
-                    ++count
                 }
             }
             eval.close()
