@@ -6,6 +6,8 @@ interface OutputWriter : AutoCloseable {
 
     fun append(result: ResultEntry)
 
+    fun writeReport(report: String)
+
 }
 
 fun OutputWriter(

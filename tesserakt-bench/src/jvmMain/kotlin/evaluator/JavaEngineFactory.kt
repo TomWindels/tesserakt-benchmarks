@@ -50,6 +50,9 @@ class JavaEngineFactory(jar: File) : EngineFactory {
         private val createLangLiteralNode by engine.method(String::class.java, String::class.java)
         private val insertQuad by engine.method(Any::class.java, Any::class.java, Any::class.java)
         private val removeQuad by engine.method(Any::class.java, Any::class.java, Any::class.java)
+        // optional methods, so may throw 'no such method error's when used that we can safely ignore
+        private val startReport by engine.method()
+        private val createReport by engine.method()
         // it's not necessary to have this method defined, so it's wrapped in a try-catch in case it's not defined
         private val close = runCatching { val close by engine.method(); close }.getOrNull()
 
@@ -75,6 +78,23 @@ class JavaEngineFactory(jar: File) : EngineFactory {
             sinceLastDataChange = TimeSource.Monotonic.markNow()
             delta.insertions.forEach { insert(it) }
             delta.deletions.forEach { remove(it) }
+        }
+
+        override suspend fun beginReport() {
+            try {
+                startReport()
+            } catch (_: NoSuchMethodError) {
+                // can be ignored - not supported by the engine implementation
+            }
+        }
+
+        override suspend fun buildReport(): String? {
+            return try {
+                createReport()
+            } catch (_: NoSuchMethodError) {
+                // can be ignored - not supported by the engine implementation
+                return null
+            } as String
         }
 
         override fun close() {

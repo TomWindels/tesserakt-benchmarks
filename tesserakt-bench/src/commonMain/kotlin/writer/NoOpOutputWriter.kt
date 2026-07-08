@@ -6,6 +6,10 @@ object NoOpOutputWriter : OutputWriter {
         // nothing to do
     }
 
+    override fun writeReport(report: String) {
+        // nothing to do
+    }
+
     override fun close() {
         // nothing to do
     }

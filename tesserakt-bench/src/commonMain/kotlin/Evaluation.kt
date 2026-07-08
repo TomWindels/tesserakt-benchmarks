@@ -52,6 +52,23 @@ suspend fun evaluateReplay(
                             }
                         }
                     }
+                    // on the final iteration, we can also try to get a report written
+                    // the report only uses 1 .. N iterations as comparison point, so we can only write one if there
+                    //  are more than one deltas to write about
+                    if (bench.changes.size < 2) {
+                        return@use
+                    }
+                    factory.new(query).use { reportingEngine ->
+                        reportingEngine.process(bench.changes.first())
+                        reportingEngine.evaluate()
+                        reportingEngine.beginReport()
+                        (1 ..< bench.changes.size).forEach { changeIndex ->
+                            reportingEngine.process(bench.changes[changeIndex])
+                            reportingEngine.evaluate()
+                        }
+                        val report = reportingEngine.buildReport() ?: return@use
+                        writer.writeReport(report)
+                    }
                 }
             }
         }

@@ -13,7 +13,7 @@ class ReplayBench(filepath: String) : Benchmark {
 
     override val queries: List<String> get() = bench.queries
 
-    override val changes: Iterable<Benchmark.DataChange> = bench.store.diffs.map { (insertions, deletions) ->
+    override val changes: List<Benchmark.DataChange> = bench.store.diffs.map { (insertions, deletions) ->
         object : Benchmark.DataChange {
             override val insertions: Set<Quad> = insertions
             override val deletions: Set<Quad> = deletions
