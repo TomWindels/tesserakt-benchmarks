@@ -8,5 +8,9 @@ includeBuild("../../tesserakt") {
         substitute(module("io.github.tomwindels:tesserakt-sparql"))
             .using(project(":sparql"))
     }
+    dependencySubstitution {
+        substitute(module("io.github.tomwindels:tesserakt-sparql-runtime"))
+            .using(project(":sparql:runtime"))
+    }
 }
 

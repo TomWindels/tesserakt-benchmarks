@@ -22,7 +22,8 @@ kotlin {
     sourceSets {
         val jvmMain by getting {
             dependencies {
-                implementation("io.github.tomwindels:tesserakt-sparql:0.3.1")
+                implementation("io.github.tomwindels:tesserakt-sparql-runtime:0.4.0")
+                implementation("io.github.tomwindels:tesserakt-sparql:0.4.0")
             }
         }
     }

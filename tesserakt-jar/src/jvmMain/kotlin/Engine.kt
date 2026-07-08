@@ -3,6 +3,7 @@ import dev.tesserakt.rdf.types.factory.ObservableStore
 import dev.tesserakt.sparql.Bindings
 import dev.tesserakt.sparql.Query
 import dev.tesserakt.sparql.queryDeferred
+import dev.tesserakt.sparql.runtime.evaluation.Statistics
 import kotlin.time.Duration
 import kotlin.time.measureTime
 
@@ -15,6 +16,12 @@ class Engine(query: String) {
     private var checksum = 0
     private var count = 0
 
+    private lateinit var start: Statistics
+
+    init {
+        Statistics.Mode.setMode(Statistics.Mode.DETAILED)
+    }
+
     @JvmName("run")
     fun run() {
         val results: List<Bindings>
@@ -23,6 +30,16 @@ class Engine(query: String) {
         }
         checksum = results.sumOf { binding -> binding.sumOf { it.second.checksumValue } }
         count = results.size
+    }
+
+    @JvmName("startReport")
+    fun startReport() {
+        start = evaluation.stats()
+    }
+
+    @JvmName("createReport")
+    fun createReport(): String {
+        return evaluation.stats().diff(start).toString()
     }
 
     @JvmName("getLastDuration")
