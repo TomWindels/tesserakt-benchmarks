@@ -7,7 +7,7 @@ rootProject.name = "tesserakt-bench"
 
 // `path/to/symlink` is not valid, causes `Missing ExternalProject for :`
 // converting it into a real path (following the symlink) fixes this
-includeBuild(File(rootProject.projectDir, "../tesserakt").toPath().toRealPath().absolutePathString()) {
+includeBuild(File(rootProject.projectDir, "../../tesserakt").toPath().toRealPath().absolutePathString()) {
     dependencySubstitution {
         substitute(module("io.github.tomwindels:tesserakt-rdf"))
             .using(project(":rdf"))

@@ -1,7 +1,7 @@
 import java.util.Properties
 
 plugins {
-    kotlin("multiplatform") version "2.2.20"
+    kotlin("multiplatform") version "2.4.0"
     id("com.gradleup.shadow") version "9.2.2"
 }
 
@@ -22,7 +22,6 @@ kotlin {
     sourceSets {
         val jvmMain by getting {
             dependencies {
-                implementation("io.github.tomwindels:tesserakt-sparql-runtime:0.4.0")
                 implementation("io.github.tomwindels:tesserakt-sparql:0.4.0")
             }
         }
