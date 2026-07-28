@@ -25,12 +25,12 @@ kotlin {
             dependencies {
                 // not sure why, but using dependency substitution made it necessary for every otherwise
                 //  transitive `api()` module to be defined explicitly
-                implementation("io.github.tomwindels:tesserakt-rdf:0.3.1")
-                implementation("io.github.tomwindels:tesserakt-rdf-snapshot_store:0.3.1")
-                implementation("io.github.tomwindels:tesserakt-serialization-common:0.3.1")
-                implementation("io.github.tomwindels:tesserakt-serialization-core:0.3.1")
-                implementation("io.github.tomwindels:tesserakt-serialization-trig:0.3.1")
-                implementation("io.github.tomwindels:tesserakt-testing-tooling-replay_benchmark:0.3.1")
+                implementation("io.github.tomwindels:tesserakt-rdf:0.4.0")
+                implementation("io.github.tomwindels:tesserakt-rdf-snapshot_store:0.4.0")
+                implementation("io.github.tomwindels:tesserakt-serialization-common:0.4.0")
+                implementation("io.github.tomwindels:tesserakt-serialization-core:0.4.0")
+                implementation("io.github.tomwindels:tesserakt-serialization-trig:0.4.0")
+                implementation("io.github.tomwindels:tesserakt-testing-tooling-replay_benchmark:0.4.0")
                 implementation("com.github.ajalt.clikt:clikt:5.0.3")
             }
         }
