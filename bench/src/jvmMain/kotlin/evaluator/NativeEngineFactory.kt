@@ -67,13 +67,11 @@ class NativeEngineFactory(lib: File): EngineFactory {
                 quad.s.toNativeElement()
                 quad.p.toNativeElement()
                 quad.o.toNativeElement()
-                quad.g.toNativeElement()
             }
             delta.deletions.forEach { quad ->
                 quad.s.toNativeElement()
                 quad.p.toNativeElement()
                 quad.o.toNativeElement()
-                quad.g.toNativeElement()
             }
             // only now we start constructing terms & measure the time it takes
             sinceLastDataChange = TimeSource.Monotonic.markNow()

@@ -82,13 +82,11 @@ class JavaEngineFactory(jar: File) : EngineFactory {
                 getTerm(quad.s)
                 getTerm(quad.p)
                 getTerm(quad.o)
-                getTerm(quad.g)
             }
             delta.deletions.forEach { quad ->
                 getTerm(quad.s)
                 getTerm(quad.p)
                 getTerm(quad.o)
-                getTerm(quad.g)
             }
             // only now we start constructing terms & measure the time it takes
             sinceLastDataChange = TimeSource.Monotonic.markNow()

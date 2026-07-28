@@ -21,13 +21,11 @@ class JsModuleEngine(private val instance: dynamic): Engine {
             quad.s.getTerm()
             quad.p.getTerm()
             quad.o.getTerm()
-            quad.g.getTerm()
         }
         delta.deletions.forEach { quad ->
             quad.s.getTerm()
             quad.p.getTerm()
             quad.o.getTerm()
-            quad.g.getTerm()
         }
         // only now we start constructing terms & measure the time it takes
         sinceLastDataChange = TimeSource.Monotonic.markNow()
