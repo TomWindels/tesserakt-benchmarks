@@ -1,8 +1,8 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
-    kotlin("multiplatform") version "2.2.21"
-    id("com.gradleup.shadow") version "9.2.2"
+    kotlin("multiplatform") version "2.4.10"
+    id("com.gradleup.shadow") version "9.6.1"
 }
 
 group = "dev.tesserakt.bench"
