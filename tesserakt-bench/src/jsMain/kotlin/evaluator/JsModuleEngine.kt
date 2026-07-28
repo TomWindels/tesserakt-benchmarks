@@ -14,6 +14,22 @@ class JsModuleEngine(private val instance: dynamic): Engine {
     private var sinceLastDataChange = TimeSource.Monotonic.markNow()
 
     override suspend fun process(delta: Benchmark.DataChange) {
+        // making sure all terms we could need during this evaluation has been sent to the external JS module first
+        // unlikely this will make a noticable difference in measured performance compared to the JNI version,
+        //  but this keeps it fair
+        delta.insertions.forEach { quad ->
+            quad.s.getTerm()
+            quad.p.getTerm()
+            quad.o.getTerm()
+            quad.g.getTerm()
+        }
+        delta.deletions.forEach { quad ->
+            quad.s.getTerm()
+            quad.p.getTerm()
+            quad.o.getTerm()
+            quad.g.getTerm()
+        }
+        // only now we start constructing terms & measure the time it takes
         sinceLastDataChange = TimeSource.Monotonic.markNow()
         runCatching {
             instance.startRoundTripTimer()

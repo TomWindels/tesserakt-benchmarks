@@ -62,6 +62,20 @@ class NativeEngineFactory(lib: File): EngineFactory {
         private val cache = mutableMapOf<Quad.Element, Pointer>()
 
         override suspend fun process(delta: Benchmark.DataChange) {
+            // making sure all terms we could need during this evaluation has crossed the JNI border first
+            delta.insertions.forEach { quad ->
+                quad.s.toNativeElement()
+                quad.p.toNativeElement()
+                quad.o.toNativeElement()
+                quad.g.toNativeElement()
+            }
+            delta.deletions.forEach { quad ->
+                quad.s.toNativeElement()
+                quad.p.toNativeElement()
+                quad.o.toNativeElement()
+                quad.g.toNativeElement()
+            }
+            // only now we start constructing terms & measure the time it takes
             sinceLastDataChange = TimeSource.Monotonic.markNow()
             delta.insertions.forEach { insert(it) }
             delta.deletions.forEach { remove(it) }
