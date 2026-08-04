@@ -21,5 +21,5 @@ cd .tesserakt
 git fetch || fail "Syncing with the repository failed!"
 git checkout --detach $1 || fail "No commit with hash `$1` was found!"
 cd ..
-./gradlew shadowJar || fail "Failed to build the runner!"
+./gradlew --no-daemon --refresh-dependencies clean shadowJar || fail "Failed to build the runner!"
 mv ./build/libs/tesserakt-*-all.jar "./tesserakt-$1.jar"
