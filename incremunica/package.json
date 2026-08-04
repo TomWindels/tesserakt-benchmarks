@@ -12,7 +12,6 @@
   "type": "commonjs",
   "dependencies": {
     "@incremunica/query-sparql-incremental": "^2.3.0",
-    "@incremunica/user-tools": "^2.3.0",
-    "@tesseraktjs/testing-tooling-replay-benchmark": "file:tesserakt/testing/tooling/replay-benchmark/build/dist/js/productionLibrary"
+    "@incremunica/user-tools": "^2.3.0"
   }
 }

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+ITERATIONS=30
 DATE=$(date +%s)
 
 LOGFILE=$(realpath -m "output/log-$DATE.txt")
@@ -27,7 +28,7 @@ run() {
 
 # doing preparation related work
 ## making sure the replay dataset is extracted
-if ! compgen -G "*.ttl" > /dev/null; then
+if ! compgen -G "input/replay/*.ttl" > /dev/null; then
     mkdir -p input/replay
     cd input/replay
     tar xf ../../replay/replay-dataset.tar.xz | exit 1
@@ -37,7 +38,7 @@ fi
 ## making sure the bench runner is available
 ## no daemon to prevent it from affecting the benchmark itself
 cd bench
-./gradlew --no-daemon clean shadowJar | exit 1
+./gradlew --no-daemon clean assemble shadowJar | exit 1
 cd ..
 
 ## tesserakt runner jar
@@ -65,6 +66,16 @@ cd oxigraph
 cargo build --release | exit 1
 cd ..
 
+## comunica mjs
+cd comunica
+npm i
+cd ..
+
+## incremunica mjs
+cd incremunica
+npm i
+cd ..
+
 bench_jvm() {
     run java -jar bench/build/libs/tesserakt-bench-*-all.jar "$@"
 }
@@ -78,15 +89,15 @@ bench_js() {
 }
 
 # Actual task list
-bench_jvm replay -e tesserakt/build/libs/*.jar input/replay/*
-bench_jvm replay -e jena/build/libs/*.jar input/replay/*
-bench_jvm replay -e blazegraph/build/libs/*.jar input/replay/*
-bench_jvm replay -e oxigraph/target/release/*.so input/replay/*
+bench_jvm replay -e tesserakt/build/libs/*.jar input/replay/* --iterations $ITERATIONS
+bench_jvm replay -e jena/build/libs/*.jar input/replay/* --iterations $ITERATIONS
+bench_jvm replay -e blazegraph/build/libs/*.jar input/replay/* --iterations $ITERATIONS
+bench_jvm replay -e oxigraph/target/release/*.so input/replay/* --iterations $ITERATIONS
 for file in input/replay/*; do
-	bench_js replay -e incremunica/incremunica.mjs "$file"
+	bench_js replay -e incremunica/incremunica.mjs "$file" --iterations $ITERATIONS
 done
 for file in input/replay/*; do
-	bench_js replay -e comunica/comunica.mjs "$file"
+	bench_js replay -e comunica/comunica.mjs "$file" --iterations $ITERATIONS
 done
 
 # The entire output can now be compressed into a single tar
