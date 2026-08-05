@@ -39,6 +39,9 @@ fi
 ## no daemon to prevent it from affecting the benchmark itself
 cd bench
 ./gradlew --no-daemon clean assemble shadowJar | exit 1
+cd build/js/packages/tesserakt-bench
+npm i
+cd ../../../..
 cd ..
 
 ## tesserakt runner jar
@@ -85,19 +88,18 @@ bench_js() {
     RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
     RAM_MB=$(expr $RAM_KB / 1024)
     MAX_MEM=$(expr $RAM_MB \* 3 / 4)
-    run node --max-old-space-size=$MAX_MEM bench/build/js/packages/tesserakt-bench/kotlin/tesserakt-bench.js "$@"
+    run node --max-old-space-size=$MAX_MEM bench/build/js/packages/tesserakt-bench/kotlin/tesserakt-bench.mjs "$@"
 }
 
 # Actual task list
-bench_jvm replay -e tesserakt/build/libs/*.jar input/replay/* --iterations $ITERATIONS
-bench_jvm replay -e jena/build/libs/*.jar input/replay/* --iterations $ITERATIONS
-bench_jvm replay -e blazegraph/build/libs/*.jar input/replay/* --iterations $ITERATIONS
-bench_jvm replay -e oxigraph/target/release/*.so input/replay/* --iterations $ITERATIONS
 for file in input/replay/*; do
-	bench_js replay -e incremunica/incremunica.mjs "$file" --iterations $ITERATIONS
-done
-for file in input/replay/*; do
-	bench_js replay -e comunica/comunica.mjs "$file" --iterations $ITERATIONS
+    bench_jvm replay -e tesserakt/build/libs/*.jar "$file" --iterations $ITERATIONS
+    bench_jvm replay -e jena/build/libs/*.jar "$file" --iterations $ITERATIONS
+    bench_jvm replay -e blazegraph/build/libs/*.jar "$file" --iterations $ITERATIONS
+    bench_jvm replay -e oxigraph/target/release/*.so "$file" --iterations $ITERATIONS
+
+   	bench_js replay -e incremunica/incremunica.mjs "$file" --iterations $ITERATIONS
+   	bench_js replay -e comunica/comunica.mjs "$file" --iterations $ITERATIONS
 done
 
 # The entire output can now be compressed into a single tar

@@ -18,6 +18,7 @@ kotlin {
         nodejs {
             passCliArgumentsToMainFunction()
             binaries.executable()
+            useEsModules()
         }
     }
     sourceSets {

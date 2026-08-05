@@ -1,8 +1,7 @@
 package writer
 
 import Path
-
-private val fs = js("require(\"fs\")")
+import js.FileSystem
 
 private val APPEND_MODE = run {
     val a: dynamic = Any()
@@ -18,7 +17,7 @@ actual class FileWriter actual constructor(private val target: Path) : AutoClose
     }
 
     actual fun append(text: String) {
-        fs.writeFileSync(target.absolutePath, text, APPEND_MODE)
+        FileSystem.writeFileSync(target.absolutePath, text, APPEND_MODE)
     }
 
     actual override fun close() {

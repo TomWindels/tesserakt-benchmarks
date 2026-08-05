@@ -4,15 +4,12 @@ import Path
 import await
 import kotlin.js.Promise
 
-actual class ExternalEngineFactory actual constructor(path: Path) : EngineFactory {
-
-    private val module = run {
-        val moduleName = path.absolutePath
-        js("require(moduleName)")
-    }
+actual class ExternalEngineFactory actual constructor(private val path: Path) : EngineFactory {
 
     actual override suspend fun new(query: String): Engine {
-        val enginePromise = module.create(query) as Promise<dynamic>
+        val modulePath = path.absolutePath
+        val factory = (js("import(modulePath)") as Promise<dynamic>).await().create
+        val enginePromise = factory(query) as Promise<dynamic>
         return JsModuleEngine(enginePromise.await())
     }
 
