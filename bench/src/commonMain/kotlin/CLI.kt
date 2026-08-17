@@ -115,9 +115,42 @@ class CLI : SuspendingNoOpCliktCommand(name = "tesserakt-bench") {
 
     }
 
+    class Query : SuspendingCliktCommand(name = "query") {
+
+        private val common by CommonOptions(commandName)
+
+        private val queries: List<String> by option("-q", "--query")
+            .help("The query to evaluate, can be a file (multiple allowed)")
+            .multiple(required = true)
+
+        private val _input: List<String> by argument("input", "`path/to/dataset.ttl` (multiple allowed)")
+            .multiple(required = true)
+
+        val input get() = _input.map { Path(it) }
+
+        override suspend fun run() {
+            val firstInvalidInput = input.firstOrNull { !it.exists() }
+            if (firstInvalidInput != null) {
+                currentContext.fail("Failed to find input file $firstInvalidInput")
+            }
+            common.output?.mkdirs()
+            val queries = queries.readContents()
+            evaluateRegular(
+                lib = common.engine,
+                inputs = input,
+                output = common.output,
+                queries = queries,
+                iterations = common.iterations,
+                failFast = common.failFast,
+            )
+        }
+
+    }
+
 }
 
 suspend fun main(args: Array<String>) = CLI().subcommands(
     CLI.Replay(),
     CLI.Stream(),
+    CLI.Query(),
 ).main(args)

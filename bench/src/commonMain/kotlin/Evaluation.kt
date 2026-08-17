@@ -1,9 +1,9 @@
 import bench.Benchmark
 import bench.replay.ReplayBench
 import dev.tesserakt.rdf.serialization.common.FileDataSource
-import dev.tesserakt.rdf.serialization.common.Format.Companion.serializer
 import dev.tesserakt.rdf.serialization.trig.TriG
 import dev.tesserakt.rdf.types.Quad
+import dev.tesserakt.rdf.types.Store
 import evaluator.ExternalEngineFactory
 import writer.*
 import kotlin.time.measureTime
@@ -123,12 +123,19 @@ suspend fun evaluateStream(
                     ),
                     type = IndexedResultEntry,
                 ).use { writer ->
+                    val triples = Store(FileDataSource(input.absolutePath), TriG)
                     repeat(iterations) {
-                        val triples = serializer(TriG).deserialize(FileDataSource(input.absolutePath))
                         factory.new(query).use { evaluator ->
                             var index = 0
-                            while (triples.hasNext()) {
-                                val update = triples.take(updateSize).toSet()
+                            val iter = triples.iterator()
+                            while (iter.hasNext()) {
+                                val update = buildSet(updateSize) {
+                                    var i = 0
+                                    while (i < updateSize && iter.hasNext()) {
+                                        add(iter.next())
+                                        ++i
+                                    }
+                                }
                                 val change = object: Benchmark.DataChange {
                                     override val insertions: Set<Quad>
                                         get() = update
@@ -143,6 +150,32 @@ suspend fun evaluateStream(
                             }
                         }
                     }
+
+                    factory.new(query).use { reportingEngine ->
+                        reportingEngine.evaluate()
+                        reportingEngine.beginReport()
+                        val iter = triples.iterator()
+                        while (iter.hasNext()) {
+                            val update = buildSet(updateSize) {
+                                var i = 0
+                                while (i < updateSize && iter.hasNext()) {
+                                    add(iter.next())
+                                    ++i
+                                }
+                            }
+                            val change = object: Benchmark.DataChange {
+                                override val insertions: Set<Quad>
+                                    get() = update
+                                override val deletions: Set<Quad>
+                                    get() = emptySet()
+                            }
+                            reportingEngine.process(change)
+                            // goes unused as we only care about the report
+                            reportingEngine.evaluate()
+                        }
+                        val report = reportingEngine.buildReport() ?: return@use
+                        writer.writeReport(report)
+                    }
                 }
             }
         }
@@ -150,15 +183,73 @@ suspend fun evaluateStream(
     factory.close()
 }
 
-private fun <T> Iterator<T>.take(size: Int): List<T> {
-    return buildList(size) {
-        repeat(size) {
-            if (!hasNext()) {
-                return@buildList
+suspend fun evaluateRegular(
+    lib: Path,
+    queries: List<String>,
+    inputs: List<Path>,
+    output: Path?,
+    iterations: Int,
+    failFast: Boolean,
+) {
+    val factory = ExternalEngineFactory(lib)
+    inputs.forEach { input ->
+        queries.forEach { query ->
+            // documented algorithm, and thus consistent hash codes can be expected
+            val code = query.md5()
+            report(
+                implementation = lib,
+                input = input,
+                code = code,
+                failFast = failFast
+            ) {
+                OutputWriter(
+                    target = inputToOutputDir(
+                        outputFolder = output,
+                        inputFile = input,
+                        implementation = lib,
+                        code = code,
+                        metadata = NoMetadata,
+                    ),
+                    type = IndexedResultEntry,
+                ).use { writer ->
+                    val triples = Store(FileDataSource(input.absolutePath), TriG)
+                    repeat(iterations) {
+                        factory.new(query).use { evaluator ->
+                            val change = object: Benchmark.DataChange {
+                                override val insertions: Set<Quad>
+                                    get() = triples
+                                override val deletions: Set<Quad>
+                                    get() = emptySet()
+                            }
+                            evaluator.process(change)
+                            val results = evaluator.evaluate()
+                            // NOTE: could be a non-indexed version as it's always 0
+                            val entry = IndexedResultEntry(0, results)
+                            writer.append(entry)
+                        }
+                    }
+
+                    factory.new(query).use { reportingEngine ->
+                        val change = object: Benchmark.DataChange {
+                            override val insertions: Set<Quad>
+                                get() = triples
+                            override val deletions: Set<Quad>
+                                get() = emptySet()
+                        }
+                        reportingEngine.process(change)
+                        // goes unused as we only care about the report
+                        reportingEngine.evaluate()
+                        // we intentionally delayed it until now - even though change reporting is all wrong,
+                        //  cardinalities are correct & used to form the actual join tree
+                        reportingEngine.beginReport()
+                        val report = reportingEngine.buildReport() ?: return@use
+                        writer.writeReport(report)
+                    }
+                }
             }
-            add(next())
         }
     }
+    factory.close()
 }
 
 private suspend inline fun report(
