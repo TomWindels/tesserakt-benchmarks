@@ -6,7 +6,6 @@ import java.io.File
 import java.lang.reflect.Method
 import java.net.URL
 import java.net.URLClassLoader
-import java.util.*
 import kotlin.reflect.KProperty
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -59,7 +58,7 @@ class JavaEngineFactory(jar: File) : EngineFactory {
         // actual engine use
 
         private var sinceLastDataChange = TimeSource.Monotonic.markNow()
-        private val cache = WeakHashMap<Quad.Element, Any>()
+        private val cache = HashMap<Quad.Element, Any>()
 
         override suspend fun evaluate(): Results {
             run()

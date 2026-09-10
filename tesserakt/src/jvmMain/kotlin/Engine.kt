@@ -47,23 +47,18 @@ class Engine(query: String) {
     @JvmName("getLastCount")
     fun getLastCount() = count
 
-    @OptIn(ExperimentalStdlibApi::class)
     // making sure we return the value class, not its inlined representation
-    @JvmExposeBoxed
     @JvmName("createNamedNode")
-    fun createNamedNode(uri: String) = Quad.NamedTerm(uri)
+    fun createNamedNode(uri: String): Quad.Element = Quad.NamedTerm(uri)
 
-    @OptIn(ExperimentalStdlibApi::class)
-    // making sure we return the value class, not its inlined representation
-    @JvmExposeBoxed
     @JvmName("createBlankNode")
-    fun createBlankNode(id: Int) = Quad.BlankTerm(id)
+    fun createBlankNode(id: Int): Quad.Element = Quad.BlankTerm(id)
 
     @JvmName("createTypedLiteralNode")
-    fun createTypedLiteralNode(value: String, dtype: String) = Quad.Literal(value, Quad.NamedTerm(dtype))
+    fun createTypedLiteralNode(value: String, dtype: String): Quad.Element = Quad.Literal(value, Quad.NamedTerm(dtype))
 
     @JvmName("createLangLiteralNode")
-    fun createLangLiteralNode(value: String, tag: String) = Quad.Literal(value, tag)
+    fun createLangLiteralNode(value: String, tag: String): Quad.Element = Quad.Literal(value, tag)
 
     @JvmName("insertQuad")
     fun insertQuad(s: Any?, p: Any?, o: Any?) {
