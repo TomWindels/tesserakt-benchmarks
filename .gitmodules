@@ -1,3 +1,6 @@
 [submodule "kolibrie/Kolibrie"]
 	path = kolibrie/Kolibrie
 	url = https://github.com/StreamIntelligenceLab/Kolibrie.git
+[submodule "incroxigraph/incroxigraph"]
+	path = incroxigraph/incroxigraph
+	url = https://github.com/maartyman/incroxigraph/
