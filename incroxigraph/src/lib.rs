@@ -2,7 +2,7 @@ use oxigraph::model::{
     BlankNode, GraphName, Literal, NamedNode, NamedOrBlankNode, Quad, Term,
 };
 use oxigraph::sparql::results::QuerySolutionRef;
-use oxigraph::sparql::{IncrementalQueryResults, IncrementalQueryResultsState, PreparedSparqlQuery, SparqlEvaluator};
+use oxigraph::sparql::{IncrementalQueryResults, PreparedSparqlQuery, SparqlEvaluator, StoreIncrementalQueryResultsState};
 use oxigraph::store::{Store, Transaction};
 use std::ffi::{CStr, c_char};
 use std::pin::Pin;
@@ -16,9 +16,7 @@ pub struct QueryEvaluator {
     // the transaction is tied to our store, but we can't explicitly state this,
     //  so we use 'static lifetime and transmute it
     transaction: Option<Transaction<'static>>,
-    // same deal here
-    evaluator:
-        IncrementalQueryResultsState<'static, oxigraph::sparql::dataset::DatasetView<'static>>,
+    evaluator: StoreIncrementalQueryResultsState,
 }
 
 #[derive(Debug)]
