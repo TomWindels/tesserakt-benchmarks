@@ -2,10 +2,7 @@ use oxigraph::model::{
     BlankNode, GraphName, Literal, NamedNode, NamedOrBlankNode, Quad, Term,
 };
 use oxigraph::sparql::results::QuerySolutionRef;
-use oxigraph::sparql::{
-    IncrementalSelectResultsState, PreparedSparqlQuery,
-    SparqlEvaluator,
-};
+use oxigraph::sparql::{IncrementalQueryResults, IncrementalQueryResultsState, PreparedSparqlQuery, SparqlEvaluator};
 use oxigraph::store::{Store, Transaction};
 use std::ffi::{CStr, c_char};
 use std::pin::Pin;
@@ -21,7 +18,7 @@ pub struct QueryEvaluator {
     transaction: Option<Transaction<'static>>,
     // same deal here
     evaluator:
-        IncrementalSelectResultsState<'static, oxigraph::sparql::dataset::DatasetView<'static>>,
+        IncrementalQueryResultsState<'static, oxigraph::sparql::dataset::DatasetView<'static>>,
 }
 
 #[derive(Debug)]
@@ -58,9 +55,13 @@ impl QueryEvaluator {
         let start = Instant::now();
         let mut count = 0;
         let mut checksum = 0;
-        let query_solutions = self.evaluator
+        let IncrementalQueryResults::Solutions(query_solutions) = self.evaluator
             .results()
             .expect("Failed to evaluate query!")
+            else {
+                panic!("Invalid result type encountered!")
+            };
+        let query_solutions = query_solutions
             .collect::<Vec<QuerySolutionRef>>();
         let duration = start.elapsed();
         for solution in query_solutions {
