@@ -192,7 +192,7 @@ impl From<Node> for Term {
 #[unsafe(no_mangle)]
 pub extern "C" fn create_named_node(uri: *const c_char) -> *mut Node {
     Box::into_raw(Box::new(Node::NamedNode(
-        NamedNode::new(unsafe { CStr::from_ptr(uri) }.to_str().unwrap()).unwrap(),
+        NamedNode::new(unsafe { CStr::from_ptr(uri) }.to_str().unwrap().to_owned()).unwrap(),
     )))
 }
 
@@ -209,8 +209,8 @@ pub extern "C" fn create_typed_literal_node(
     dtype: *const c_char,
 ) -> *mut Node {
     Box::into_raw(Box::new(Node::Literal(Literal::new_typed_literal(
-        unsafe { CStr::from_ptr(value) }.to_str().unwrap(),
-        NamedNode::new(unsafe { CStr::from_ptr(dtype).to_str().unwrap() }).unwrap(),
+        unsafe { CStr::from_ptr(value) }.to_str().unwrap().to_owned(),
+        NamedNode::new(unsafe { CStr::from_ptr(dtype).to_str().unwrap().to_owned() }).unwrap(),
     ))))
 }
 
@@ -218,8 +218,8 @@ pub extern "C" fn create_typed_literal_node(
 pub extern "C" fn create_lang_literal_node(value: *const c_char, tag: *const c_char) -> *mut Node {
     Box::into_raw(Box::new(Node::Literal(
         Literal::new_language_tagged_literal_unchecked(
-            unsafe { CStr::from_ptr(value) }.to_str().unwrap(),
-            unsafe { CStr::from_ptr(tag).to_str().unwrap() },
+            unsafe { CStr::from_ptr(value) }.to_str().unwrap().to_owned(),
+            unsafe { CStr::from_ptr(tag).to_str().unwrap().to_owned() },
         ),
     )))
 }
